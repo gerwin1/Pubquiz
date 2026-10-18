@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pubquiz</title>
+<style>
+:root{--bg:#faf6ee;--card:#fff;--tx:#2a2118;--mut:#7a6d5c;--ac:#c2410c;--acx:#fff;--bd:#e6dccb;--ok:#15803d;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1612;--card:#262019;--tx:#f3ebdd;--mut:#a89a85;--ac:#fb923c;--acx:#1b1612;--bd:#3a3128;--ok:#4ade80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:600px;margin:0 auto;padding:16px}
+h1{font-size:26px;margin:8px 0 2px}h2{font-size:18px;margin:0 0 10px}
+.mut{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin:12px 0}
+input,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;margin:4px 0}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 16px;background:var(--ac);color:var(--acx);cursor:pointer}
+button.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.q{padding:10px 0;border-top:1px solid var(--bd)}.q:first-of-type{border-top:0}
+.big{font-size:22px;font-weight:700;margin:8px 0}
+.ans{color:var(--ok);font-weight:700;font-size:20px}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;border:1px solid var(--ok);color:var(--ok);font-size:13px;margin:2px}
+.sc{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+.sc button{padding:4px 12px}
+.code{font-size:12px;word-break:break-all;height:110px}
+.msg{color:var(--ok);font-size:14px}.bad{color:#dc2626}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+(function(){
+var PER=5, KEY='pubquiz-host-v1';
+var app=document.getElementById('app');
+var mode='home', S={players:[],phase:'collect',order:[],idx:0,reveal:false,scores:{}};
+var draft={name:'',qs:[{q:'',a:''},{q:'',a:''},{q:'',a:''},{q:'',a:''},{q:'',a:''}]};
+var code='', msg='', bad=false;
+try{var sv=localStorage.getItem(KEY);if(sv)S=JSON.parse(sv)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function enc(o){return 'PQ1:'+btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
+function dec(t){var o=JSON.parse(decodeURIComponent(escape(atob(t.replace(/^PQ1:/,'')))));if(!o||!o.name||!o.qs||!o.qs.length)throw 0;return o}
+function $(id){return document.getElementById(id)}
+function readDraft(){
+  if($('nm'))draft.name=$('nm').value;
+  for(var i=0;i<PER;i++){if($('q'+i))draft.qs[i].q=$('q'+i).value;if($('a'+i))draft.qs[i].a=$('a'+i).value}
+}
+function note(m,b){msg=m;bad=!!b}
+function render(){
+  var h='<h1>🍻 Pubquiz</h1>';
+  if(mode==='home'){
+    h+='<div class="mut">Kies wat je bent.</div><div class="card"><h2>Ik doe mee</h2><p class="mut">Vul je '+PER+' vragen in en stuur de code naar de host.</p><button id="toP">Mijn vragen invullen</button></div>'+
+       '<div class="card"><h2>Ik ben de host</h2><p class="mut">Verzamel de codes en leid de quiz.</p><button class="sec" id="toH">Host-scherm openen</button></div>';
+  }else if(mode==='player'){
+    h+='<div class="card"><h2>Jouw '+PER+' vragen</h2><input id="nm" placeholder="Je naam" value="'+esc(draft.name)+'">';
+    for(var i=0;i<PER;i++)h+='<div class="q"><b>Vraag '+(i+1)+'</b><textarea id="q'+i+'" rows="2" placeholder="Vraag">'+esc(draft.qs[i].q)+'</textarea><input id="a'+i+'" placeholder="Antwoord" value="'+esc(draft.qs[i].a)+'"></div>';
+    h+='<div class="row"><button id="mk">Maak code</button><button class="sec" id="bk">Terug</button></div><div class="'+(bad?'bad':'msg')+'">'+esc(msg)+'</div></div>';
+    if(code){
+      h+='<div class="card"><h2>Jouw code</h2><p class="mut">Stuur deze hele tekst naar de host.</p><textarea class="code" id="cd" readonly>'+esc(code)+'</textarea><div class="row"><button id="cp">Kopieer code</button><button class="sec" id="wa">Deel via WhatsApp</button></div></div>';
+    }
+  }else{
+    var n=S.players.length;
+    if(S.phase==='collect'){
+      h+='<div class="card"><h2>Codes verzamelen ('+n+' ingestuurd)</h2>';
+      S.players.forEach(function(p){h+='<span class="pill">✓ '+esc(p.name)+' ('+p.qs.length+')</span>'});
+      if(!n)h+='<span class="mut">Nog niemand.</span>';
+      h+='<textarea class="code" id="paste" placeholder="Plak hier één of meer codes"></textarea><div class="row"><button id="add">Toevoegen</button></div><div class="'+(bad?'bad':'msg')+'">'+esc(msg)+'</div></div>';
+      h+='<div class="row"><button id="start"'+(n<1?' disabled':'')+'>Start de quiz</button><button class="sec" id="bk">Terug</button>'+(n?'<button class="sec" id="clr">Alles wissen</button>':'')+'</div>';
+    }else if(S.phase==='play'){
+      var it=S.order[S.idx],p=S.players[it[0]],qq=p.qs[it[1]];
+      h+='<div class="card"><div class="mut">Vraag '+(S.idx+1)+' van '+S.order.length+' · van '+esc(p.name)+'</div><div class="big">'+esc(qq.q)+'</div>';
+      h+=S.reveal?'<div class="ans">✔ '+esc(qq.a)+'</div>':'<div class="mut">Schrijf je antwoord op papier…</div>';
+      h+='</div><div class="row">'+(S.reveal?'<button id="next">'+(S.idx+1>=S.order.length?'Naar de uitslag':'Volgende vraag')+'</button>':'<button id="rev">Toon antwoord</button>')+'</div>'+board(true);
+    }else{
+      h+='<div class="card"><h2>🏆 Uitslag</h2></div>'+board(false)+'<button class="sec" id="rs">Opnieuw beginnen</button>';
+    }
+  }
+  app.innerHTML=h;bind();
+}
+function board(edit){
+  var ids=S.players.map(function(p,i){return i}).sort(function(a,b){return (S.scores[b]||0)-(S.scores[a]||0)});
+  var h='<div class="card"><h2>Scores</h2>';
+  ids.forEach(function(i){h+='<div class="sc"><span>'+esc(S.players[i].name)+'</span><span class="row"><b>'+(S.scores[i]||0)+'</b>'+(edit?'<button class="sec" data-s="'+i+'" data-d="-1">−</button><button class="sec" data-s="'+i+'" data-d="1">+</button>':'')+'</span></div>'});
+  return h+'</div>';
+}
+function on(id,f){if($(id))$(id).onclick=f}
+function bind(){
+  on('toP',function(){mode='player';note('');render()});
+  on('toH',function(){mode='host';note('');render()});
+  on('bk',function(){mode='home';note('');render()});
+  on('mk',function(){
+    readDraft();
+    var name=draft.name.trim();
+    var list=draft.qs.map(function(x){return{q:x.q.trim(),a:x.a.trim()}}).filter(function(x){return x.q&&x.a});
+    if(!name){note('Vul je naam in',1);code='';render();return}
+    if(list.length<PER){note('Vul alle '+PER+' vragen én antwoorden in',1);code='';render();return}
+    code=enc({name:name,qs:list});note('Code gemaakt ✓');render();
+  });
+  on('cp',function(){
+    var done=function(){note('Gekopieerd ✓');render()};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(code).then(done,function(){$('cd').select()});
+    else{$('cd').select();document.execCommand('copy');done()}
+  });
+  on('wa',function(){window.open('https://wa.me/?text='+encodeURIComponent(code),'_blank')});
+  on('add',function(){
+    var parts=$('paste').value.split(/\s+/).filter(function(x){return x}),ok=0,fail=0;
+    parts.forEach(function(t){
+      try{var o=dec(t);var k=-1;S.players.forEach(function(p,i){if(p.name.toLowerCase()===o.name.toLowerCase())k=i});
+        if(k>=0)S.players[k]=o;else S.players.push(o);ok++}catch(e){fail++}
+    });
+    save();note(ok+' toegevoegd'+(fail?', '+fail+' ongeldig':''),fail&&!ok);render();
+  });
+  on('clr',function(){if(confirm('Alle ingestuurde codes wissen?')){S.players=[];save();render()}});
+  on('start',function(){
+    var o=[];S.players.forEach(function(p,i){p.qs.forEach(function(_,j){o.push([i,j])})});
+    for(var i=o.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=o[i];o[i]=o[j];o[j]=t}
+    S.order=o;S.idx=0;S.reveal=false;S.scores={};S.phase='play';save();render();
+  });
+  on('rev',function(){S.reveal=true;save();render()});
+  on('next',function(){if(S.idx+1>=S.order.length)S.phase='done';else{S.idx++;S.reveal=false}save();render()});
+  on('rs',function(){if(confirm('Opnieuw beginnen? Scores worden gewist.')){S.phase='collect';S.order=[];S.idx=0;S.reveal=false;S.scores={};save();render()}});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-s]'),function(b){
+    b.onclick=function(){var k=b.getAttribute('data-s');S.scores[k]=Math.max(0,(S.scores[k]||0)+parseInt(b.getAttribute('data-d'),10));save();render()};
+  });
+}
+render();
+})();
+</script>
+</body>
+</html>
