@@ -26,7 +26,12 @@ h2{font-size:1.35rem;margin:0 0 .6rem}
 .sign{border:3px double var(--brass);border-radius:4px;padding:22px 18px;margin:12px 0 18px;text-align:center;background:var(--g9);box-shadow:0 0 0 6px var(--g8),0 0 0 8px var(--brass2)}
 .sign h1{margin:0;font-size:clamp(2.4rem,9vw,4.2rem);line-height:1;color:var(--brass)}
 .sign p{margin:.6rem 0 0;color:var(--ivory);opacity:.85}
-.bar{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:6px 0 12px}
+.bar{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:2px 0 6px}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.ib{display:inline-grid;place-items:center;width:44px;height:44px;background:none;border:0;border-radius:8px;color:var(--ivory);opacity:.85;cursor:pointer;padding:0}
+.ib:hover{opacity:1;background:rgba(255,255,255,.08)}
+.ib svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ib.off{opacity:.55}
 .logo{font-family:"Alfa Slab One",Georgia,serif;color:var(--brass);font-size:1.3rem}
 .chip{border:1px solid var(--brass2);color:var(--brass);border-radius:99px;padding:2px 12px;font-weight:600}
 .lnk{background:none;border:0;color:var(--ivory);opacity:.8;text-decoration:underline;font:inherit;cursor:pointer;padding:8px}
@@ -87,7 +92,8 @@ button.opt{cursor:pointer}
 button.opt:disabled{opacity:.35;cursor:not-allowed}
 .card{box-shadow:0 2px 0 rgba(0,0,0,.25)}
 .btn:active{transform:translateY(1px)}
-.acts{display:flex;gap:2px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.acts{display:flex;gap:2px;align-items:center;flex:none}
+.chip{white-space:nowrap}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:760px){.cols{grid-template-columns:1fr}}
 .qr svg{display:block;width:min(100%,210px);height:auto;margin:10px auto;border-radius:8px}
@@ -437,7 +443,16 @@ async function copyLink(){
 
 /* ---- views ---- */
 const sign=()=>`<header class="sign"><h1>Pubquiz</h1><p>Iedereen maakt vragen. Daarna spelen jullie ze samen.</p></header>`;
-const topbar=()=>`<div class="bar"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':'Code '+esc(S.code)}</span><span class="acts"><button class="lnk" data-a="snd">${sndOn()?'Geluid aan':'Geluid uit'}</button>${S.role==='host'?'<button class="lnk" data-a="fs">Beeldvullend</button>':''}<button class="lnk" data-a="leave">Stoppen</button></span></div>`;
+const ICO={
+  son:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  soff:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></svg>',
+  fs:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+  fsx:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+  out:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg>'
+};
+const canFs=()=>!!(document.fullscreenEnabled&&document.documentElement.requestFullscreen);
+const ib=(a,ico,label,cls)=>`<button class="ib${cls?' '+cls:''}" data-a="${a}" aria-label="${label}" title="${label}">${ico}</button>`;
+const topbar=()=>{const on=sndOn(),fs=!!document.fullscreenElement;return `<div class="bar"><span class="brand"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':'Code '+esc(S.code)}</span></span><span class="acts">${ib('snd',on?ICO.son:ICO.soff,on?'Geluid staat aan, tik om uit te zetten':'Geluid staat uit, tik om aan te zetten',on?'':'off')}${S.role==='host'&&canFs()?ib('fs',fs?ICO.fsx:ICO.fs,fs?'Beeldvullend uit':'Beeldvullend'):''}${ib('leave',ICO.out,'Stoppen')}</span></div>`};
 const qrSvg=link=>{
   try{
     const q=qrcode(0,'M');q.addData(link);q.make();
@@ -535,7 +550,7 @@ function hostView(){
     return h+`<section class="card try"><h2>Testquiz over FC Groningen</h2>
     <p>Je speelt vijf vragen tegen Sjors en Femke, twee nepspelers die vanzelf meedoen.</p>
     <ol><li>Eerst zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
-    <p class="mut">Het geluid staat aan, rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
+    <p class="mut">Het geluid staat aan. Met het luidsprekertje rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
     <div class="row"><button class="btn big" data-a="start"${ready?'':' disabled'}>Start de testquiz</button><button class="btn sec" data-a="leave" style="color:var(--ivory)">Terug</button></div>`;
   }
   if(S.trial&&g.phase==='done'){
@@ -651,6 +666,7 @@ setInterval(()=>{
     if(el>=lim+1500||(ex>0&&Object.keys(S.ans).length>=ex&&el>800))revealQ();
   }
 },250);
+document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
 })();
