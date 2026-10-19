@@ -248,6 +248,33 @@ const SFX={
   win:()=>[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,i*.14,.38,'triangle',.16))
 };
 const sfx=n=>{try{if(sndOn()&&SFX[n]){ac();SFX[n]()}}catch(e){}};
+/* ---- achtergrondmuziek tijdens het aftellen ---- */
+let MUS=null;
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+function note(m,at,d,type,vol){
+  const a=AC,o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.value=mtof(m);
+  g.gain.setValueAtTime(.0001,at);g.gain.linearRampToValueAtTime(vol,at+.01);g.gain.exponentialRampToValueAtTime(.0001,at+d);
+  o.connect(g);g.connect(a.destination);o.start(at);o.stop(at+d+.05);
+}
+const SONG=[[45,[57,60,64]],[41,[53,57,60]],[48,[55,60,64]],[43,[55,59,62]]];
+const EIGHTH=60/132/2;
+function musStep(i,at){
+  const [root,ch]=SONG[(i>>3)%4],k=i%8;
+  if(k===0||k===3||k===4||k===6)note(root,at,EIGHTH*1.6,'triangle',.11);
+  note(ch[[0,1,2,1,0,1,2,1][k]]+12,at,EIGHTH*.8,'square',.022);
+  if(k%2===1)note(ch[2]+24,at,.05,'sine',.012);
+}
+function musSched(){
+  if(!MUS||!AC)return;
+  while(MUS.next<AC.currentTime+.25){musStep(MUS.step,MUS.next);MUS.step=(MUS.step+1)%32;MUS.next+=EIGHTH}
+}
+function musicSync(want){
+  try{
+    if(want&&sndOn()&&!MUS){const a=ac();if(!a||a.state!=='running')return;MUS={next:a.currentTime+.05,step:0,t:setInterval(musSched,60)};musSched()}
+    else if((!want||!sndOn())&&MUS){clearInterval(MUS.t);MUS=null}
+  }catch(e){}
+}
 
 /* ---- realtime ---- */
 function unwatch(){S.unsubs.forEach(f=>f());S.unsubs=[];if(S.ansUnsub){S.ansUnsub();S.ansUnsub=null}S.ans={};S.curKey='';S.myAns=null}
@@ -550,7 +577,7 @@ function hostView(){
     return h+`<section class="card try"><h2>Testquiz over FC Groningen</h2>
     <p>Je speelt vijf vragen tegen Sjors en Femke, twee nepspelers die vanzelf meedoen.</p>
     <ol><li>Eerst zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
-    <p class="mut">Het geluid staat aan. Met het luidsprekertje rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
+    <p class="mut">Het geluid staat aan, met een deuntje tijdens het aftellen. Met het luidsprekertje rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
     <div class="row"><button class="btn big" data-a="start"${ready?'':' disabled'}>Start de testquiz</button><button class="btn sec" data-a="leave" style="color:var(--ivory)">Terug</button></div>`;
   }
   if(S.trial&&g.phase==='done'){
@@ -648,7 +675,9 @@ document.addEventListener('change',e=>{
 let tickN=0;
 setInterval(()=>{
   tickN++;
-  const g=S.game;if(!g||g.phase!=='play'||!g.cur)return;
+  const g=S.game;
+  {let want=false;if(g&&g.phase==='play'&&g.cur&&!g.rev&&S.role==='host'){const e=elapsed(g);want=e>=0&&e<(g.limit||20)*1000}musicSync(want)}
+  if(!g||g.phase!=='play'||!g.cur)return;
   if(S.role==='player'&&tickN%60===0)beat();
   if(g.rev)return;
   const lim=(g.limit||20)*1000,el=elapsed(g);
