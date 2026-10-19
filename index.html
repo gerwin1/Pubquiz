@@ -361,8 +361,6 @@ function startTrial(){
   DB=memDB(trySeed);S.trial=true;S.role='host';S.code='TEST';S.qs={};S.players={};S.game=null;S.err='';
   S.hostMe={id:'jij',name:'Jij'};S.formOpen=false;
   wake();watchGame();render();window.scrollTo(0,0);
-  const go=()=>{if(!S.trial)return;if(S.game&&S.qs.testquiz&&Object.keys(S.players).length)startQuiz();else setTimeout(go,30)};
-  setTimeout(go,30);
 }
 function botsPlay(key){
   const g=S.game,[id,j]=g.order[g.idx].split('|'),q=S.qs[id]&&S.qs[id].qs[+j];if(!q)return;
@@ -477,7 +475,7 @@ function home(){
   return `${sign()}
   <section class="card try"><h2>Nieuw hier? Speel eerst een testquiz</h2>
     <p class="mut">Vijf vragen over FC Groningen, tegen twee nepspelers. Duurt een paar minuten en werkt alleen op dit apparaat. Er wordt niets opgeslagen.</p>
-    <div class="row"><button class="btn big" data-a="trial">Start de testquiz</button></div>
+    <div class="row"><button class="btn big" data-a="trial">Naar de testquiz</button></div>
   </section>
   <section class="card"><h2>Meedoen</h2>
     <label class="lab">Code van de quiz<input id="jc" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" value="${esc(qc||sv.code||(DEMO?'DEMO':''))}"></label>
@@ -532,7 +530,14 @@ function hostView(){
   if(!g)return `${topbar()}<p class="on-green">Laden…</p>`;
   let h=topbar();
   if(S.formOpen)return h+form();
-  if(S.trial&&g.phase==='collect')return h+`<p class="on-green">Testquiz wordt klaargezet…</p>`;
+  if(S.trial&&g.phase==='collect'){
+    const ready=!!S.qs.testquiz&&Object.keys(S.players).length>0;
+    return h+`<section class="card try"><h2>Testquiz over FC Groningen</h2>
+    <p>Je speelt vijf vragen tegen Sjors en Femke, twee nepspelers die vanzelf meedoen.</p>
+    <ol><li>Eerst zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
+    <p class="mut">Het geluid staat aan, rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
+    <div class="row"><button class="btn big" data-a="start"${ready?'':' disabled'}>Start de testquiz</button><button class="btn sec" data-a="leave" style="color:var(--ivory)">Terug</button></div>`;
+  }
   if(S.trial&&g.phase==='done'){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id==='jij')+1;
     return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}<div class="result">${rk===1?'Gewonnen!':'Plek '+rk}</div><h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,'jij')}</section>
