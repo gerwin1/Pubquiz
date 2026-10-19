@@ -116,6 +116,10 @@ textarea,input[type=text],select{max-width:100%}
 .file input{display:block;margin-top:4px;font:inherit}
 .fe{color:#a33322;font-weight:600;margin:10px 0 0}
 .wait{text-align:center;padding:26px 10px}
+.try{background:var(--g9);color:var(--ivory);border:2px solid var(--brass)}
+.try h2{color:var(--brass)}
+.try .mut{color:var(--ivory);opacity:.85}
+.try ol{margin:.4em 0 0;padding-left:1.3em}.try li{margin:.3em 0}
 .wait .big{font-size:2.4rem}
 @media(prefers-reduced-motion:reduce){.board .nm i{animation:none}}
 </style>
@@ -129,7 +133,7 @@ const FB={apiKey:"AIzaSyA2rK-0SlzxjDjPek-Y2ojCV0dSdVOniCo",authDomain:"pubquiz-e
 const app=document.getElementById('app');
 const DEMO=/[?&]demo\b/.test(location.search)||!/^https?:$/.test(location.protocol);
 const PFX=DEMO?'demo-':'';
-function memDB(){
+function memDB(seed){
   const store={},subs=[];
   const cl=x=>JSON.parse(JSON.stringify(x));
   const snap=p=>({exists:p in store,id:p.split('/').pop(),data:()=>cl(store[p])});
@@ -153,6 +157,11 @@ function memDB(){
     })
   });
   const db={collection:n=>colRef(n),runTransaction:async f=>f({get:r=>r.get(),update:(r,d)=>r.update(d)})};
+  if(seed)seed(store);
+  db.mem=true;
+  return db;
+}
+function demoSeed(store){
   const Q=[
     ['Anna',[['Wat is de hoofdstad van Australië?',['Sydney','Melbourne','Canberra','Perth'],2],['Hoeveel poten heeft een spin?',['6','8','10','12'],1]]],
     ['Bram',[['Welke kleur krijg je door blauw en geel te mengen?',['Groen','Paars','Oranje','Bruin'],0],['Hoe heet de hoogste berg ter wereld?',['K2','Mount Everest','Mont Blanc','Kilimanjaro'],1]]],
@@ -160,11 +169,25 @@ function memDB(){
   ];
   store['games/DEMO']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},created:Date.now()};
   Q.forEach(([n,qs])=>{store['games/DEMO/questions/'+n.toLowerCase()]={name:n,ts:Date.now(),qs:qs.map(([q,o,c])=>({q,o,c,img:''}))}});
-  return db;
+}
+/* ---- testquiz voor nieuwe gebruikers ---- */
+const TRY_QS=[
+  ['In welk jaar is FC Groningen opgericht?',['1964','1971','1980','1989'],1],
+  ['In welk stadion speelt FC Groningen sinds 2006?',['Oosterpark','Abe Lenstra Stadion','Euroborg','De Kuip'],2],
+  ['Wat zijn de clubkleuren van FC Groningen?',['Rood en wit','Blauw en wit','Geel en zwart','Groen en wit'],3],
+  ['In welk jaar won FC Groningen de KNVB-beker?',['2009','2012','2015','2019'],2],
+  ['Welke speler begon zijn profcarrière bij FC Groningen?',['Arjen Robben','Robin van Persie','Wesley Sneijder','Frenkie de Jong'],0]
+];
+const BOTS=[['sjors','Sjors',.65],['femke','Femke',.5]];
+function trySeed(store){
+  store['games/TEST']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},limit:20,rd:3,created:Date.now()};
+  store['games/TEST/questions/testquiz']={name:'Testquiz',ts:Date.now(),qs:TRY_QS.map(([q,o,c])=>({q,o,c,img:''}))};
+  [['jij','Jij'],...BOTS].forEach(([id,name])=>{store['games/TEST/players/'+id]={name,seen:Date.now()}});
 }
 let DB=null;
-if(DEMO)DB=memDB();
+if(DEMO)DB=memDB(demoSeed);
 else try{firebase.initializeApp(FB);DB=firebase.firestore()}catch(e){}
+const REAL=DB;
 
 /* ---- helpers ---- */
 const PER=5,SYM=['▲','◆','●','■'],LET=['A','B','C','D'];
@@ -176,13 +199,13 @@ const ref=c=>DB.collection('games').doc(c);
 const ls={get(k){try{return JSON.parse(localStorage.getItem(PFX+k))}catch(e){return null}},set(k,v){try{localStorage.setItem(PFX+k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(PFX+k)}catch(e){}}};
 const okImg=s=>typeof s==='string'&&s.startsWith('data:image/jpeg;base64,')&&s.length<400000?s:'';
 const ms=v=>v&&v.toMillis?v.toMillis():(typeof v==='number'?v:null);
-const TS=()=>DEMO?Date.now():firebase.firestore.FieldValue.serverTimestamp();
+const TS=()=>DB&&DB.mem?Date.now():firebase.firestore.FieldValue.serverTimestamp();
 const cl=x=>JSON.parse(JSON.stringify(x));
 const SNAP={serverTimestamps:'estimate'};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 
 /* ---- state ---- */
-const S={players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
+const S={trial:false,players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
 let errT=null;
 const fail=m=>{S.err=m;render();clearTimeout(errT);errT=setTimeout(()=>{S.err='';render()},7000)};
 const dbErr=()=>fail('Geen toegang tot de database. Controleer de Firestore-regels en je verbinding.');
@@ -234,7 +257,7 @@ function onGame(){
   const wasRev=S.lastRev,wasPhase=S.lastPhase;S.lastRev=g.rev;S.lastPhase=g.phase;
   if(key===S.curKey){
     if(g.phase==='play'&&g.rev&&wasRev===false){
-      if(S.role==='host')sfx('reveal');
+      if(S.role==='host')sfx(S.hostMe&&g.cur&&g.cur.aid!==S.hostMe.id?(S.myAns===g.c?'good':'bad'):'reveal');
       else if(g.cur&&g.cur.aid!==(meNow()||{}).id)sfx(S.myAns===g.c?'good':'bad');
     }
     return;
@@ -244,11 +267,12 @@ function onGame(){
   S.curKey=key;S.myAns=null;S.tq=Date.now();S.revealing=false;S.rdState=undefined;S.lastTick=-1;
   if(S.ansUnsub){S.ansUnsub();S.ansUnsub=null;S.ans={}}
   if(!key)return;
+  if(S.trial)botsPlay(key);
   if(S.role==='host')S.ansUnsub=ref(S.code).collection('answers').where('k','==',key).onSnapshot(s=>{S.ans={};s.forEach(d=>{const x=d.data(SNAP);S.ans[x.p]=x});render()},dbErr);
   const me=meNow();
   if(me)ref(S.code).collection('answers').doc(key+'_'+me.id).get().then(d=>{if(d.exists&&S.curKey===key){S.myAns=d.data().a;render()}}).catch(()=>{});
 }
-function leave(){unwatch();S.players={};S.revealing=false;S.role='home';S.game=null;S.qs={};S.mine=null;S.me=null;S.hostMe=null;S.skip=false;S.formOpen=false;S.code='';S.err='';render()}
+function leave(){unwatch();if(S.trial){S.trial=false;DB=REAL}S.players={};S.revealing=false;S.role='home';S.game=null;S.qs={};S.mine=null;S.me=null;S.hostMe=null;S.skip=false;S.formOpen=false;S.code='';S.err='';render()}
 
 /* ---- player ---- */
 async function join(){
@@ -332,6 +356,26 @@ function beginHost(code){
   const hm=ls.get('pq-hostme');S.hostMe=hm&&hm.code===code?{id:idOf(hm.name),name:hm.name}:null;
   wake();watchGame();render();
 }
+function startTrial(){
+  unwatch();
+  DB=memDB(trySeed);S.trial=true;S.role='host';S.code='TEST';S.qs={};S.players={};S.game=null;S.err='';
+  S.hostMe={id:'jij',name:'Jij'};S.formOpen=false;
+  wake();watchGame();render();window.scrollTo(0,0);
+  const go=()=>{if(!S.trial)return;if(S.game&&S.qs.testquiz&&Object.keys(S.players).length)startQuiz();else setTimeout(go,30)};
+  setTimeout(go,30);
+}
+function botsPlay(key){
+  const g=S.game,[id,j]=g.order[g.idx].split('|'),q=S.qs[id]&&S.qs[id].qs[+j];if(!q)return;
+  const lim=(g.limit||20)*1000,wait=(g.rd||0)*1000;
+  BOTS.forEach(([bid,name,skill])=>{
+    const dt=1500+Math.random()*Math.min(lim*.55,9000);
+    const a=Math.random()<skill?q.c:[0,1,2,3].filter(x=>x!==q.c)[Math.random()*3|0];
+    setTimeout(()=>{
+      if(!S.trial||S.curKey!==key||!S.game||S.game.rev)return;
+      ref(S.code).collection('answers').doc(key+'_'+bid).set({k:key,p:bid,name,a,ts:Date.now(),dt}).catch(()=>{});
+    },wait+dt);
+  });
+}
 function setHostMe(name){
   name=(name||'').trim();if(!name){fail('Vul je naam in om mee te spelen.');return}
   S.hostMe={id:idOf(name),name};ls.set('pq-hostme',{code:S.code,name});
@@ -343,7 +387,7 @@ async function startQuiz(){
   const lim=$('lim')?+$('lim').value:(S.game.limit||20),rd=$('rd')?+$('rd').value:(S.game.rd==null?3:S.game.rd);
   const order=[];ids.forEach(id=>S.qs[id].qs.forEach((_,j)=>order.push(id+'|'+j)));shuffle(order);
   const scores={};
-  ids.forEach(id=>{scores[id]={n:S.qs[id].name,s:0}});
+  if(!S.trial)ids.forEach(id=>{scores[id]={n:S.qs[id].name,s:0}});
   Object.keys(S.players).forEach(id=>{if(!scores[id])scores[id]={n:S.players[id].name,s:0}});
   try{await ref(S.code).update({phase:'play',run:(S.game.run||0)+1,idx:0,rev:false,c:-1,order,scores,gains:{},bon:{},streaks:{},limit:lim,rd,t0:TS(),cur:curFor(order,0)})}catch(e){dbErr()}
 }
@@ -395,7 +439,7 @@ async function copyLink(){
 
 /* ---- views ---- */
 const sign=()=>`<header class="sign"><h1>Pubquiz</h1><p>Iedereen maakt vragen. Daarna spelen jullie ze samen.</p></header>`;
-const topbar=()=>`<div class="bar"><span class="logo">Pubquiz</span><span class="chip">Code ${esc(S.code)}</span><span class="acts"><button class="lnk" data-a="snd">${sndOn()?'Geluid aan':'Geluid uit'}</button>${S.role==='host'?'<button class="lnk" data-a="fs">Beeldvullend</button>':''}<button class="lnk" data-a="leave">Stoppen</button></span></div>`;
+const topbar=()=>`<div class="bar"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':'Code '+esc(S.code)}</span><span class="acts"><button class="lnk" data-a="snd">${sndOn()?'Geluid aan':'Geluid uit'}</button>${S.role==='host'?'<button class="lnk" data-a="fs">Beeldvullend</button>':''}<button class="lnk" data-a="leave">Stoppen</button></span></div>`;
 const qrSvg=link=>{
   try{
     const q=qrcode(0,'M');q.addData(link);q.make();
@@ -431,6 +475,10 @@ const pic=s=>s?`<img class="pic" src="${s}" alt="">`:'';
 function home(){
   const qc=(new URLSearchParams(location.search).get('c')||'').toUpperCase(),sv=ls.get('pq-me')||{},hc=ls.get('pq-host');
   return `${sign()}
+  <section class="card try"><h2>Nieuw hier? Speel eerst een testquiz</h2>
+    <p class="mut">Vijf vragen over FC Groningen, tegen twee nepspelers. Duurt een paar minuten en werkt alleen op dit apparaat. Er wordt niets opgeslagen.</p>
+    <div class="row"><button class="btn big" data-a="trial">Start de testquiz</button></div>
+  </section>
   <section class="card"><h2>Meedoen</h2>
     <label class="lab">Code van de quiz<input id="jc" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" value="${esc(qc||sv.code||(DEMO?'DEMO':''))}"></label>
     <label class="lab">Je naam<input id="jn" type="text" maxlength="20" autocomplete="nickname" value="${esc(sv.name||'')}"></label>
@@ -484,6 +532,13 @@ function hostView(){
   if(!g)return `${topbar()}<p class="on-green">Laden…</p>`;
   let h=topbar();
   if(S.formOpen)return h+form();
+  if(S.trial&&g.phase==='collect')return h+`<p class="on-green">Testquiz wordt klaargezet…</p>`;
+  if(S.trial&&g.phase==='done'){
+    const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id==='jij')+1;
+    return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}<div class="result">${rk===1?'Gewonnen!':'Plek '+rk}</div><h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,'jij')}</section>
+    <section class="card try"><h2>Zo werkt het met je vrienden</h2><ol><li>De quizmaster kiest Nieuwe quiz maken en deelt de code van vier letters.</li><li>Iedereen maakt in eigen tempo vijf vragen met vier antwoorden, desnoods weken van tevoren.</li><li>Op de quizavond start de quizmaster en antwoordt iedereen op de eigen telefoon.</li></ol></section>
+    <div class="row"><button class="btn big" data-a="leave">Terug naar de start</button><button class="btn sec" data-a="start" style="color:var(--ivory)">Nog een keer</button></div>`;
+  }
   if(g.phase==='collect'){
     const ids=Object.keys(S.qs),link=location.origin+location.pathname+'?c='+S.code,hm=S.hostMe;
     const pls=Object.keys(S.players).filter(id=>!S.qs[id]),np=ids.length+pls.length;
@@ -504,21 +559,27 @@ function hostView(){
   if(reading)opts='<p class="mut">De antwoorden verschijnen zo…</p>';
   else if(hm&&!rev&&c.aid!==hm.id&&S.myAns==null)opts=optsBtn(c.o);
   else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
-  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}, van ${esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${pic(c.img)}${opts}</section>`;
+  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${S.trial?'':', van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${pic(c.img)}${opts}</section>`;
+  if(S.trial&&!rev&&c.n===1)h+=`<p class="on-green">Tik op het goede antwoord. Hoe sneller je goed antwoordt, hoe meer punten: tot 1000 per vraag.</p>`;
+  if(rev&&hm&&c.aid!==hm.id){
+    const ok=S.myAns===g.c,gain=(g.gains||{})[hm.id]||0,st=(g.streaks||{})[hm.id]||0,b=(g.bon||{})[hm.id]||0;
+    h+=`<section class="card ${ok?'good':'bad'}"><div class="result ${ok?'ok':'no'}">${S.myAns==null?'Te laat':ok?'Goed! +'+gain:'Helaas'}</div>${ok&&st>=2?`<p class="ok">Reeks van ${st} goed: bonus +${b}</p>`:''}${ok?'':`<p>Het goede antwoord was <b>${LET[g.c]}. ${esc(c.o[g.c])}</b>.</p>`}</section>`;
+  }
   h+=`<section class="card"><h2>Antwoorden (${answers.length}${rev?'':' van '+expected()})</h2>${answers.length?answers.map(a=>`<div class="sc"><span>${esc(a.name)}</span><span>${SYM[a.a]} ${LET[a.a]}${rev?(a.a===g.c?` <span class="ok">✓ +${(g.gains||{})[a.p]||0}</span>`:' <span class="no">✗</span>'):''}</span></div>`).join(''):'<p class="mut">Nog geen antwoorden binnen.</p>'}</section>`;
-  h+=`<div class="row">${rev?`<button class="btn big" data-a="next">${c.n>=c.tot?'Naar de eindstand':'Volgende vraag'}</button>`:'<button class="btn big" data-a="reveal">Toon antwoord</button><button class="btn sec" data-a="skipq">Vraag overslaan</button>'}</div>`;
+  h+=`<div class="row">${rev?`<button class="btn big" data-a="next">${c.n>=c.tot?'Naar de eindstand':'Volgende vraag'}</button>`:'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq">Vraag overslaan</button>')}</div>`;
   if(rev)h+=`<section class="card"><h2>Tussenstand, top 5</h2>${board(g.scores,hm?hm.id:'',5)}</section>`;
   return h;
 }
 const expected=()=>{
   const g=S.game,aid=g&&g.cur?g.cur.aid:'',me=S.hostMe?S.hostMe.id:'';
+  if(S.trial)return Object.keys(S.players).filter(id=>id!==aid).length;
   const n=Object.keys(S.players).filter(id=>id!==aid&&id!==me&&S.players[id].seen&&Date.now()-S.players[id].seen<45000).length;
   return n+(me&&me!==aid?1:0);
 };
 const hm0=()=>S.hostMe?S.hostMe.id:'';
 function view(){
-  if(!DB)return `${sign()}<div class="card">De database is niet bereikbaar. Controleer je internetverbinding en ververs de pagina.</div>`;
-  const b=DEMO?'<div class="alert" style="background:var(--g7)">Voorbeeldmodus: niets wordt opgeslagen en alles verdwijnt bij verversen. Gebruik de code DEMO, als quizmaster of als speler.</div>':'';
+  if(!DB)return `<div class="alert">De database is niet bereikbaar. Meedoen en een quiz maken lukt nu niet, de testquiz wel. Controleer je internetverbinding en ververs de pagina.</div>`+home();
+  const b=DEMO&&!S.trial?'<div class="alert" style="background:var(--g7)">Voorbeeldmodus: niets wordt opgeslagen en alles verdwijnt bij verversen. Gebruik de code DEMO, als quizmaster of als speler.</div>':'';
   return b+(S.role==='host'?hostView():S.role==='player'?playerView():home());
 }
 function render(){
@@ -539,9 +600,10 @@ document.addEventListener('click',e=>{
   const a=b.dataset.a;
   if(a==='join')join();
   else if(a==='newquiz')newQuiz();
+  else if(a==='trial')startTrial();
   else if(a==='openhost')openHost(b.dataset.c);
   else if(a==='openhost2')openHost($('rc').value);
-  else if(a==='leave'){if(S.role==='host'&&S.game&&S.game.phase==='done')ls.del('pq-host');leave()}
+  else if(a==='leave'){if(!S.trial&&S.role==='host'&&S.game&&S.game.phase==='done')ls.del('pq-host');leave()}
   else if(a==='start')startQuiz();
   else if(a==='reveal')revealQ();
   else if(a==='next')nextQ();
