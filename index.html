@@ -565,7 +565,7 @@ function hostView(){
     const ok=S.myAns===g.c,gain=(g.gains||{})[hm.id]||0,st=(g.streaks||{})[hm.id]||0,b=(g.bon||{})[hm.id]||0;
     h+=`<section class="card ${ok?'good':'bad'}"><div class="result ${ok?'ok':'no'}">${S.myAns==null?'Te laat':ok?'Goed! +'+gain:'Helaas'}</div>${ok&&st>=2?`<p class="ok">Reeks van ${st} goed: bonus +${b}</p>`:''}${ok?'':`<p>Het goede antwoord was <b>${LET[g.c]}. ${esc(c.o[g.c])}</b>.</p>`}</section>`;
   }
-  h+=`<section class="card"><h2>Antwoorden (${answers.length}${rev?'':' van '+expected()})</h2>${answers.length?answers.map(a=>`<div class="sc"><span>${esc(a.name)}</span><span>${SYM[a.a]} ${LET[a.a]}${rev?(a.a===g.c?` <span class="ok">✓ +${(g.gains||{})[a.p]||0}</span>`:' <span class="no">✗</span>'):''}</span></div>`).join(''):'<p class="mut">Nog geen antwoorden binnen.</p>'}</section>`;
+  h+=`<section class="card"><h2>Antwoorden (${answers.length}${rev?'':' van '+expected()})</h2>${answers.length?answers.map(a=>`<div class="sc"><span>${esc(a.name)}</span><span>${rev?`${SYM[a.a]} ${LET[a.a]}${a.a===g.c?` <span class="ok">✓ +${(g.gains||{})[a.p]||0}</span>`:' <span class="no">✗</span>'}`:'<span class="mut">heeft geantwoord</span>'}</span></div>`).join(''):'<p class="mut">Nog geen antwoorden binnen.</p>'}</section>`;
   h+=`<div class="row">${rev?`<button class="btn big" data-a="next">${c.n>=c.tot?'Naar de eindstand':'Volgende vraag'}</button>`:'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq">Vraag overslaan</button>')}</div>`;
   if(rev)h+=`<section class="card"><h2>Tussenstand, top 5</h2>${board(g.scores,hm?hm.id:'',5)}</section>`;
   return h;
