@@ -58,7 +58,23 @@ details{margin-top:14px}summary{cursor:pointer;color:var(--mut)}
 .pill small{opacity:.7;font-weight:400}
 .q{font-weight:700;font-size:clamp(1.3rem,3.4vw,2.2rem);line-height:1.25;margin:.2em 0 .4em}
 .from{color:var(--mut);font-size:.95rem}
-img.pic{display:block;max-width:100%;max-height:min(46vh,380px);border-radius:8px;margin:10px auto}
+img.pic{display:block;max-width:100%;width:auto;height:auto;max-height:min(28vh,320px);object-fit:contain;border-radius:8px;margin:10px auto;cursor:zoom-in}
+[hidden]{display:none!important}
+.zhint{text-align:center;font-size:.8rem;color:var(--mut);margin:-4px 0 4px}
+.qf img.pic{max-height:170px;margin:8px 0}
+.qgrid>*{min-width:0}
+@media(min-width:900px){.qgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:22px;align-items:center}.qgrid img.pic{max-height:min(46vh,520px);margin:0 auto}.qgrid .opts{grid-template-columns:1fr;margin-top:0}.qgrid .opt{min-height:64px;padding:.7em 1em;font-size:1.45rem}}
+.zoom{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 12px);cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+.zoom span{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:14px;color:#fff;font-size:2rem;line-height:1}
+.tchip{display:inline-block;background:var(--g8);color:var(--ivory);border-radius:99px;padding:1px 10px;font-size:.85rem;font-weight:700;margin-left:6px;vertical-align:1px}
+.cd{text-align:center;padding:28px 18px}
+.cdtopic{font-family:"Alfa Slab One",Georgia,serif;font-size:clamp(2rem,9vw,4.2rem);color:var(--g8);line-height:1.1;margin:.15em 0}
+.cdn{font-family:"Alfa Slab One",Georgia,serif;font-size:clamp(4.5rem,24vw,9rem);color:var(--brass2);line-height:1;min-height:1em;margin-top:.1em}
+.cdn.go{animation:pop .9s ease-out both}
+@keyframes pop{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.cdn.go{animation:none}}
+.delimg{background:none;border:0;color:var(--o0);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:6px 0}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 @media(max-width:520px){.opts{grid-template-columns:1fr}}
 .opt{display:flex;gap:.7em;align-items:center;color:#fff;border:0;border-radius:8px;padding:1em 1.1em;min-height:68px;font:700 clamp(1.05rem,2.3vw,1.6rem) Figtree,system-ui,sans-serif;text-align:left;word-break:break-word}
@@ -128,6 +144,7 @@ textarea,input[type=text],select{max-width:100%}
 .try ol{margin:.4em 0 0;padding-left:1.3em}.try li{margin:.3em 0}
 .wait .big{font-size:2.4rem}
 @media(prefers-reduced-motion:reduce){.board .nm i{animation:none}}
+@media(max-width:520px){.opt{min-height:56px;padding:.75em 1em}img.pic{max-height:min(25vh,280px)}.qf img.pic{max-height:170px}}
 </style>
 </head>
 <body>
@@ -137,6 +154,8 @@ textarea,input[type=text],select{max-width:100%}
 /* ---- Firebase ---- */
 const FB={apiKey:"AIzaSyA2rK-0SlzxjDjPek-Y2ojCV0dSdVOniCo",authDomain:"pubquiz-e1f69.firebaseapp.com",projectId:"pubquiz-e1f69",storageBucket:"pubquiz-e1f69.firebasestorage.app",messagingSenderId:"1062523724044",appId:"1:1062523724044:web:09d895d25c0f042aaf6929"};
 const app=document.getElementById('app');
+const TOPICS=['FC Groningen','Vakanties','Actualiteit','Geschiedenis','Festivals','Stad Groningen','De vriendengroep'];
+const topicsOf=g=>g&&g.topics&&g.topics.length?g.topics:TOPICS;
 const DEMO=/[?&]demo\b/.test(location.search)||!/^https?:$/.test(location.protocol);
 const PFX=DEMO?'demo-':'';
 function memDB(seed){
@@ -155,6 +174,7 @@ function memDB(seed){
   });
   const colRef=(p,flt)=>({
     doc:id=>docRef(p+'/'+id),
+    get:async()=>{const n=p.split('/').length+1;const docs=Object.keys(store).filter(k=>k.startsWith(p+'/')&&k.split('/').length===n).map(snap);return{forEach:f=>docs.forEach(f)}},
     where:(f,o,v)=>colRef(p,d=>d[f]===v),
     onSnapshot:fn=>sub(()=>{
       const n=p.split('/').length+1;
@@ -173,8 +193,9 @@ function demoSeed(store){
     ['Bram',[['Welke kleur krijg je door blauw en geel te mengen?',['Groen','Paars','Oranje','Bruin'],0],['Hoe heet de hoogste berg ter wereld?',['K2','Mount Everest','Mont Blanc','Kilimanjaro'],1]]],
     ['Chloe',[['In welk jaar begon de Eerste Wereldoorlog?',['1904','1914','1918','1939'],1],['Welk element heeft symbool O?',['Goud','Osmium','Zuurstof','IJzer'],2]]]
   ];
-  store['games/DEMO']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},created:Date.now()};
-  Q.forEach(([n,qs])=>{store['games/DEMO/questions/'+n.toLowerCase()]={name:n,ts:Date.now(),qs:qs.map(([q,o,c])=>({q,o,c,img:''}))}});
+  const T={Anna:'Vakanties',Bram:'De vriendengroep',Chloe:'Geschiedenis'};
+  store['games/DEMO']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},topics:TOPICS,created:Date.now()};
+  Q.forEach(([n,qs])=>{store['games/DEMO/questions/'+n.toLowerCase()]={name:n,topic:T[n],ts:Date.now(),qs:qs.map(([q,o,c])=>({q,o,c,img:''}))}});
 }
 /* ---- testquiz voor nieuwe gebruikers ---- */
 const TRY_QS=[
@@ -186,8 +207,8 @@ const TRY_QS=[
 ];
 const BOTS=[['sjors','Sjors',.65],['femke','Femke',.5]];
 function trySeed(store){
-  store['games/TEST']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},limit:20,rd:3,created:Date.now()};
-  store['games/TEST/questions/testquiz']={name:'Testquiz',ts:Date.now(),qs:TRY_QS.map(([q,o,c])=>({q,o,c,img:''}))};
+  store['games/TEST']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},limit:20,rd:3,topics:['FC Groningen'],created:Date.now()};
+  store['games/TEST/questions/testquiz']={name:'Testquiz',topic:'FC Groningen',ts:Date.now(),qs:TRY_QS.map(([q,o,c])=>({q,o,c,img:''}))};
   [['jij','Jij'],...BOTS].forEach(([id,name])=>{store['games/TEST/players/'+id]={name,seen:Date.now()}});
 }
 let DB=null;
@@ -211,7 +232,7 @@ const SNAP={serverTimestamps:'estimate'};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 
 /* ---- state ---- */
-const S={trial:false,players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
+const S={trial:false,allQs:{},players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
 let errT=null;
 const fail=m=>{S.err=m;render();clearTimeout(errT);errT=setTimeout(()=>{S.err='';render()},7000)};
 const dbErr=()=>fail('Geen toegang tot de database. Controleer de Firestore-regels en je verbinding.');
@@ -296,8 +317,7 @@ function onGame(){
     return;
   }
   if(g.phase==='done'&&wasPhase==='play')sfx('win');
-  else if(key&&wasPhase!==undefined)sfx('start');
-  S.curKey=key;S.myAns=null;S.tq=Date.now();S.revealing=false;S.rdState=undefined;S.lastTick=-1;
+  S.curKey=key;S.myAns=null;S.tq=Date.now();S.revealing=false;S.stKey='';S.lastTick=-1;
   if(S.ansUnsub){S.ansUnsub();S.ansUnsub=null;S.ans={}}
   if(!key)return;
   if(S.trial)botsPlay(key);
@@ -319,32 +339,50 @@ async function join(){
     S.formOpen=!S.mine&&g.data().phase==='collect';
     S.imgs=(S.mine?S.mine.qs:[]).map(x=>x.img||'');
     ls.set('pq-me',{code,name});wake();beat();watchGame();render();
+    if(S.formOpen)loadTaken().then(render);
   }catch(e){dbErr()}
 }
 function beat(){
   const me=S.role==='player'?S.me:null;if(!me||!S.code)return;
   ref(S.code).collection('players').doc(me.id).set({name:me.name,seen:Date.now()},{merge:true}).catch(()=>{});
 }
-const elapsed=g=>Date.now()-((S.role==='host'&&ms(g.t0))||S.tq)-(g.rd||0)*1000;
+const pre=g=>((g.cur&&g.cur.cd)||0)+(g.rd||0);
+const elapsed=g=>Date.now()-((S.role==='host'&&ms(g.t0))||S.tq)-pre(g)*1000;
+const stage=g=>{const e=elapsed(g),r=(g.rd||0)*1000;return e<-r?'cd':e<0?'rd':'go'};
+const cdNum=g=>Math.max(1,Math.ceil((-elapsed(g)-(g.rd||0)*1000)/1000));
 async function answer(a){
   const g=S.game,me=meNow();
-  if(!g||!me||S.myAns!=null||g.rev||g.phase!=='play'||elapsed(g)>=(g.limit||20)*1000)return;
+  if(!g||!me||S.myAns!=null||g.rev||g.phase!=='play'||!g.cur||g.cur.aid===me.id||elapsed(g)<0||elapsed(g)>=(g.limit||20)*1000)return;
   const key=g.run+'_'+g.idx;S.myAns=a;sfx('lock');render();
-  try{await ref(S.code).collection('answers').doc(key+'_'+me.id).set({k:key,p:me.id,name:me.name,a,ts:TS(),dt:Math.max(0,Date.now()-S.tq-(g.rd||0)*1000)})}
+  try{await ref(S.code).collection('answers').doc(key+'_'+me.id).set({k:key,p:me.id,name:me.name,a,ts:TS(),dt:Math.max(0,Date.now()-S.tq-pre(g)*1000)})}
   catch(e){S.myAns=null;fail('Je antwoord is niet aangekomen. Tik nog eens.')}
 }
+async function loadTaken(){
+  if(S.role!=='player')return;
+  try{const s=await ref(S.code).collection('questions').get();S.allQs={};s.forEach(d=>{S.allQs[d.id]=d.data()})}catch(e){}
+}
+function takenBy(){
+  const me=meNow(),src=S.role==='host'?S.qs:S.allQs,t={};
+  Object.keys(src||{}).forEach(id=>{const x=src[id];if(x&&x.topic&&(!me||id!==me.id))t[x.topic]=x.name});
+  return t;
+}
 function collect(){
-  const qs=[],fe=$('fe');
+  const qs=[],fe=$('fe'),tp=$('tp')?$('tp').value:'';
+  if(!tp){fe.textContent='Kies eerst je onderwerp, bovenaan het formulier.';return null}
+  const tb=takenBy()[tp];
+  if(tb){fe.textContent=`${tp} is al gekozen door ${tb}. Kies een ander onderwerp.`;return null}
   for(let i=0;i<PER;i++){
     const q=$('q'+i).value.trim(),o=[0,1,2,3].map(j=>$(`o${i}_${j}`).value.trim()),r=document.querySelector(`input[name="c${i}"]:checked`);
     if(!q||o.some(x=>!x)||!r){fe.textContent=`Vraag ${i+1} is nog niet af: vul de vraag, alle vier de antwoorden en het goede antwoord in.`;return null}
     qs.push({q,o,c:+r.value,img:S.imgs[i]||''});
   }
+  qs.topic=tp;
   return qs;
 }
 async function submitQs(){
+  await loadTaken();
   const qs=collect();if(!qs)return;
-  const me=meNow(),data={name:me.name,qs,ts:Date.now()};
+  const me=meNow(),data={name:me.name,topic:qs.topic,qs:qs.slice(),ts:Date.now()};
   if(JSON.stringify(data).length>900000){$('fe').textContent='De foto’s zijn samen te groot. Haal er een of twee weg.';return}
   try{
     await ref(S.code).collection('questions').doc(me.id).set(data);
@@ -355,13 +393,24 @@ async function submitQs(){
 }
 function openForm(){
   const m=mineOf();S.imgs=(m?m.qs:[]).map(x=>x.img||'');S.formOpen=true;render();
+  loadTaken().then(render);
+}
+function zoom(src){
+  if(!src)return;
+  const d=document.createElement('div');d.className='zoom';d.setAttribute('role','dialog');d.setAttribute('aria-label','Foto vergroot, tik om te sluiten');
+  d.innerHTML=`<img src="${src}" alt=""><span aria-hidden="true">×</span>`;d.onclick=()=>d.remove();document.body.appendChild(d);
+}
+async function saveTopics(){
+  const t=($('tpl').value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!t.length){fail('Vul minstens één onderwerp in.');return}
+  try{await ref(S.code).update({topics:[...new Set(t)]});fail('Onderwerpen opgeslagen.')}catch(e){dbErr()}
 }
 function resize(file,cb){
   const r=new FileReader();
   r.onload=()=>{const im=new Image();im.onload=()=>{
-    const s=Math.min(1,640/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    const s=Math.min(1,800/Math.max(im.width,im.height)),c=document.createElement('canvas');
     c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
-    c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.6));
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.62));
   };im.src=r.result};
   r.readAsDataURL(file);
 }
@@ -372,7 +421,7 @@ async function newQuiz(){
   try{
     let c='';
     for(let i=0;i<6;i++){c=mkCode();if(!(await ref(c).get()).exists)break}
-    await ref(c).set({phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},created:Date.now()});
+    await ref(c).set({phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},topics:TOPICS,created:Date.now()});
     beginHost(c);
   }catch(e){dbErr()}
 }
@@ -397,7 +446,7 @@ function startTrial(){
 }
 function botsPlay(key){
   const g=S.game,[id,j]=g.order[g.idx].split('|'),q=S.qs[id]&&S.qs[id].qs[+j];if(!q)return;
-  const lim=(g.limit||20)*1000,wait=(g.rd||0)*1000;
+  const lim=(g.limit||20)*1000,wait=pre(g)*1000;
   BOTS.forEach(([bid,name,skill])=>{
     const dt=1500+Math.random()*Math.min(lim*.55,9000);
     const a=Math.random()<skill?q.c:[0,1,2,3].filter(x=>x!==q.c)[Math.random()*3|0];
@@ -412,11 +461,16 @@ function setHostMe(name){
   S.hostMe={id:idOf(name),name};ls.set('pq-hostme',{code:S.code,name});
   ref(S.code).collection('players').doc(S.hostMe.id).set({name,seen:Date.now()},{merge:true}).catch(()=>{});render();
 }
-const curFor=(order,i)=>{const [id,j]=order[i].split('|'),q=S.qs[id].qs[+j];return{n:i+1,tot:order.length,q:q.q,img:q.img||'',o:q.o,au:S.qs[id].name,aid:id}};
+const curFor=(order,i)=>{
+  const au=x=>x.split('|')[0],[id,j]=order[i].split('|'),q=S.qs[id].qs[+j];
+  let rnd=0;for(let k=0;k<=i;k++)if(k===0||au(order[k])!==au(order[k-1]))rnd++;
+  const first=i===0||au(order[i-1])!==id;
+  return{n:i+1,tot:order.length,q:q.q,img:q.img||'',o:q.o,au:S.qs[id].name,aid:id,topic:S.qs[id].topic||'',rnd,rtot:new Set(order.map(au)).size,first,cd:first?5:3};
+};
 async function startQuiz(){
   const ids=Object.keys(S.qs);if(!ids.length)return;
   const lim=$('lim')?+$('lim').value:(S.game.limit||20),rd=$('rd')?+$('rd').value:(S.game.rd==null?3:S.game.rd);
-  const order=[];ids.forEach(id=>S.qs[id].qs.forEach((_,j)=>order.push(id+'|'+j)));shuffle(order);
+  const order=[];shuffle(ids.slice()).forEach(id=>shuffle(S.qs[id].qs.map((_,j)=>j)).forEach(j=>order.push(id+'|'+j)));
   const scores={};
   if(!S.trial)ids.forEach(id=>{scores[id]={n:S.qs[id].name,s:0}});
   Object.keys(S.players).forEach(id=>{if(!scores[id])scores[id]={n:S.players[id].name,s:0}});
@@ -446,7 +500,7 @@ async function revealQ(){
   if(!S.qs[id]){fail('De vragen worden nog geladen. Probeer het zo opnieuw.');return}
   S.revealing=true;
   const q=S.qs[id].qs[+j],got={};Object.values(S.ans).forEach(a=>{got[a.p]=a});
-  const r=calcRound(g,got,q,ms(g.t0)!=null?ms(g.t0)+(g.rd||0)*1000:null);
+  const r=calcRound(g,got,q,ms(g.t0)!=null?ms(g.t0)+pre(g)*1000:null);
   try{
     await DB.runTransaction(async tx=>{
       const snap=await tx.get(ref(S.code));
@@ -510,7 +564,13 @@ const board=(sc,me,top)=>{
 const optsStatic=(o,c,cnt)=>`<div class="opts">${o.map((t,i)=>`<div class="opt o${i}${c>=0&&i!==c?' dim':''}${c===i?' win':''}">${sy(i)}<span>${esc(t)}</span>${cnt?`<b class="cnt">${cnt[i]}</b>`:''}</div>`).join('')}</div>`;
 const optsBtn=o=>`<div class="opts">${o.map((t,i)=>`<button class="opt o${i}" data-a="ans" data-i="${i}">${sy(i)}<span>${esc(t)}</span></button>`).join('')}</div>`;
 const timerHtml=g=>{const lim=(g.limit||20)*1000,el=Math.min(lim,Math.max(0,elapsed(g)));return `<div class="tline"><span class="timer" id="tm">${Math.ceil((lim-el)/1000)}</span><div class="tbar"><i id="tb" style="width:${Math.round((1-el/lim)*100)}%"></i></div></div>`};
-const pic=s=>s?`<img class="pic" src="${s}" alt="">`:'';
+const pic=(s,hint)=>s?`<img class="pic" src="${s}" alt="Foto bij de vraag" data-a="zoom">${hint?'<p class="zhint">Tik op de foto om te vergroten</p>':''}`:'';
+const tchip=c=>c.topic?`<span class="tchip">${esc(c.topic)}</span>`:'';
+const cdCard=(g,extra)=>{
+  const c=g.cur,n=cdNum(g),show=n<=3;
+  const head=c.first?`<div class="from">Ronde ${c.rnd} van ${c.rtot}</div><div class="cdtopic">${esc(c.topic||'Vragen van '+c.au)}</div>${c.topic&&!S.trial?`<p class="mut">Vragen van ${esc(c.au)}</p>`:''}`:`<div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}</div>`;
+  return `<section class="card cd">${head}<div class="cdn${show?' go':''}" aria-live="polite">${show?n:''}</div>${extra||''}</section>`;
+};
 
 function home(){
   const qc=(new URLSearchParams(location.search).get('c')||'').toUpperCase(),sv=ls.get('pq-me')||{},hc=ls.get('pq-host');
@@ -533,11 +593,15 @@ function home(){
 }
 function form(){
   const me=meNow(),pre=(mineOf()||{}).qs||[];
-  let h=`<section class="card"><h2>Maak je ${PER} vragen, ${esc(me.name)}</h2><p class="mut">Elke vraag heeft vier antwoorden. Kies het goede met het bolletje. Een foto is optioneel.</p>`;
+  const tk=takenBy(),cur=(mineOf()||{}).topic||'',tps=topicsOf(S.game).slice();
+  if(cur&&!tps.includes(cur))tps.push(cur);
+  let h=`<section class="card"><h2>Maak je ${PER} vragen, ${esc(me.name)}</h2>
+  <label class="lab">Jouw onderwerp<select id="tp"><option value="">Kies een onderwerp</option>${tps.map(t=>`<option value="${esc(t)}"${t===cur?' selected':''}${tk[t]?' disabled':''}>${esc(t)}${tk[t]?' (gekozen door '+esc(tk[t])+')':''}</option>`).join('')}</select></label>
+  <p class="mut">Iedereen kiest een eigen onderwerp en maakt daar ${PER} vragen over. Elke vraag heeft vier antwoorden; kies het goede met het bolletje. Een foto is optioneel.</p>`;
   for(let i=0;i<PER;i++){
     const p=pre[i]||{};
     h+=`<fieldset class="qf"><legend>Vraag ${i+1}</legend><textarea id="q${i}" rows="2" placeholder="Stel je vraag">${esc(p.q)}</textarea>
-    <label class="file">Foto toevoegen<input type="file" accept="image/*" data-f="${i}"></label><img class="pic" id="pv${i}" alt="" hidden>
+    <label class="file">Foto toevoegen<input type="file" accept="image/*" data-f="${i}" id="fi${i}"></label><img class="pic" id="pv${i}" alt="Voorbeeld van je foto" data-a="zoom" hidden><button type="button" class="delimg" data-a="delimg" data-i="${i}" id="dl${i}" hidden>Foto verwijderen</button>
     ${[0,1,2,3].map(j=>`<label class="ansrow"><input type="radio" name="c${i}" value="${j}"${p.c===j?' checked':''}><span class="sym s${j}">${SYM[j]}</span><input type="text" id="o${i}_${j}" placeholder="Antwoord ${LET[j]}" value="${esc((p.o||[])[j])}"></label>`).join('')}</fieldset>`;
   }
   return h+`<p class="fe" id="fe" role="alert"></p><div class="row"><button class="btn" data-a="submit">Vragen opslaan</button>${mineOf()?'<button class="btn sec" data-a="closeform">Annuleren</button>':(S.role==='player'?'<button class="btn sec" data-a="skip">Alleen meespelen</button>':'')}</div></section>`;
@@ -548,15 +612,16 @@ function playerView(){
   let h=`${topbar()}`;
   if(g.phase==='collect'){
     if(S.formOpen)return h+form();
-    return h+`<section class="card wait"><div class="slab big">${S.mine?'Je vragen staan erin':'Je doet mee'}</div><p>${S.mine?`Dank, ${esc(me.name)}. Zodra de quizmaster start, verschijnt de eerste vraag hier vanzelf.`:'Wacht tot de quizmaster de quiz start.'}</p><div class="row" style="justify-content:center"><button class="btn sec" data-a="editform">${S.mine?'Mijn vragen aanpassen':'Toch vragen maken'}</button></div></section>`;
+    return h+`<section class="card wait"><div class="slab big">${S.mine?'Je vragen staan erin':'Je doet mee'}</div>${S.mine&&S.mine.topic?`<p>Jouw onderwerp: <b>${esc(S.mine.topic)}</b></p>`:''}<p>${S.mine?`Dank, ${esc(me.name)}. Zodra de quizmaster start, verschijnt de eerste vraag hier vanzelf.`:'Wacht tot de quizmaster de quiz start.'}</p><div class="row" style="justify-content:center"><button class="btn sec" data-a="editform">${S.mine?'Mijn vragen aanpassen':'Toch vragen maken'}</button></div></section>`;
   }
   if(g.phase==='done'){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id===me.id)+1;
     return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Eindstand</h2>${board(g.scores,me.id,8)}</section>`;
   }
   const c=g.cur;if(!c)return h;
-  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img)}</section>`;
-  if(c.aid===me.id)return h+`<section class="card wait"><div class="slab big">Jouw vraag</div><p>Je doet bij deze vraag niet mee. Kijk maar hoe de rest het doet.</p></section>`;
+  if(!g.rev&&stage(g)==='cd')return h+cdCard(g,c.aid===me.id?'<p>Dit is jouw onderwerp. Bij deze vragen doe je niet mee.</p>':'');
+  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img,true)}</section>`;
+  if(c.aid===me.id)return h+`<section class="card wait"><div class="slab big">Jouw vraag</div><p>Deze vraag heb jij gemaakt, dus je doet niet mee. Kijk maar hoe de rest het doet.</p></section>`;
   if(g.rev){
     const gain=(g.gains||{})[me.id]||0,b=(g.bon||{})[me.id]||0,st=(g.streaks||{})[me.id]||0,ok=S.myAns===g.c;
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id===me.id)+1,mine=rk?arr[rk-1].s:0,lead=arr[0];
@@ -576,7 +641,7 @@ function hostView(){
     const ready=!!S.qs.testquiz&&Object.keys(S.players).length>0;
     return h+`<section class="card try"><h2>Testquiz over FC Groningen</h2>
     <p>Je speelt vijf vragen tegen Sjors en Femke, twee nepspelers die vanzelf meedoen.</p>
-    <ol><li>Eerst zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
+    <ol><li>Elke vraag begint met aftellen: 3, 2, 1. Bij de eerste zie je ook het onderwerp.</li><li>Daarna zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
     <p class="mut">Het geluid staat aan, met een deuntje tijdens het aftellen. Met het luidsprekertje rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
     <div class="row"><button class="btn big" data-a="start"${ready?'':' disabled'}>Start de testquiz</button><button class="btn sec" data-a="leave" style="color:var(--ivory)">Terug</button></div>`;
   }
@@ -591,14 +656,18 @@ function hostView(){
     const pls=Object.keys(S.players).filter(id=>!S.qs[id]),np=ids.length+pls.length;
     const total=ids.reduce((n,id)=>n+S.qs[id].qs.length,0);
     h+=`<div class="cols"><section class="card" style="text-align:center"><div class="mut">Doe mee met code</div><div class="code">${esc(S.code)}</div>${qrSvg(link)}<p class="mut">of ga naar ${esc(link)}</p><div class="row" style="justify-content:center"><button class="btn sec" data-a="copy">Kopieer link</button></div></section>`;
-    h+=`<section class="card"><h2>Spelers (${np})</h2>${np?`<div class="pills">${ids.map(id=>`<span class="pill">${esc(S.qs[id].name)} <small>${S.qs[id].qs.length} vragen</small><button class="x" data-a="delq" data-id="${id}" aria-label="Vragen van ${esc(S.qs[id].name)} verwijderen">×</button></span>`).join('')}${pls.map(id=>`<span class="pill">${esc(S.players[id].name)} <small>nog geen vragen</small></span>`).join('')}</div><p class="mut" style="margin-top:12px">${total} vragen in de pot, ongeveer ${Math.max(1,Math.round(total*35/60))} minuten spelen.</p>`:'<p class="mut">Nog niemand heeft vragen ingestuurd. Je mag deze pagina sluiten: de code blijft werken en de vragen blijven bewaard.</p>'}</section></div>`;
+    h+=`<section class="card"><h2>Spelers (${np})</h2>${np?`<div class="pills">${ids.map(id=>`<span class="pill">${esc(S.qs[id].name)} <small>${S.qs[id].topic?esc(S.qs[id].topic)+', ':''}${S.qs[id].qs.length} vragen</small><button class="x" data-a="delq" data-id="${id}" aria-label="Vragen van ${esc(S.qs[id].name)} verwijderen">×</button></span>`).join('')}${pls.map(id=>`<span class="pill">${esc(S.players[id].name)} <small>nog geen vragen</small></span>`).join('')}</div><p class="mut" style="margin-top:12px">${total} vragen in de pot, ongeveer ${Math.max(1,Math.round(total*35/60))} minuten spelen.</p>`:'<p class="mut">Nog niemand heeft vragen ingestuurd. Je mag deze pagina sluiten: de code blijft werken en de vragen blijven bewaard.</p>'}</section></div>`;
+    const tk=takenBy0(),tl=topicsOf(g);
+    h+=`<section class="card"><h2>Onderwerpen</h2><div class="pills">${tl.map(t=>`<span class="pill"${tk[t]?'':' style="background:#e7e0c9;color:var(--ink)"'}>${esc(t)} <small>${tk[t]?esc(tk[t]):'nog vrij'}</small></span>`).join('')}</div>
+    <details style="margin-top:10px"><summary>Onderwerpen aanpassen</summary><p class="mut">Eén onderwerp per regel.</p><textarea id="tpl" rows="${Math.max(4,tl.length+1)}">${esc(tl.join('\n'))}</textarea><div class="row"><button class="btn sec" data-a="savetopics">Opslaan</button></div></details></section>`;
     h+=`<section class="card"><h2>Zelf meespelen</h2>${hm?`<p>Je speelt mee als <b>${esc(hm.name)}</b>. ${S.qs[hm.id]?'Je vragen staan erin.':'Je hebt nog geen vragen gemaakt.'}</p><div class="row"><button class="btn sec" data-a="editform">${S.qs[hm.id]?'Mijn vragen aanpassen':'Mijn vragen maken'}</button></div>`:`<p class="mut">Wil je zelf ook vragen maken en antwoorden op dit scherm?</p><label class="lab">Je naam<input id="hn" type="text" maxlength="20"></label><div class="row"><button class="btn sec" data-a="hostme">Ik speel mee</button></div>`}</section>`;
-    return h+`<section class="card"><h2>Spelregels</h2><div class="row" style="margin:0"><label class="lab" style="margin:0">Tijd per vraag<select id="lim"><option value="10">10 seconden</option><option value="20" selected>20 seconden</option><option value="30">30 seconden</option><option value="60">60 seconden</option></select></label><label class="lab" style="margin:0">Leestijd<select id="rd"><option value="0">Geen</option><option value="3" selected>3 seconden</option><option value="5">5 seconden</option><option value="8">8 seconden</option></select></label></div><p class="mut">Net als bij Kahoot: een goed antwoord levert tot 1000 punten op. Direct antwoorden geeft 1000, in de laatste seconde 500. Meerdere goede antwoorden achter elkaar geven een reeksbonus, van +100 oplopend tot +500. Fout of te laat geeft 0 punten. Tijdens de leestijd staat alleen de vraag op het scherm. Het antwoord wordt getoond zodra iedereen heeft geantwoord of de tijd om is.</p></section><div class="row"><button class="btn big" data-a="start"${ids.length?'':' disabled'}>Start de quiz</button></div><p class="on-green">Wie geen vragen maakt, kan toch meedoen met de code zodra de quiz loopt.</p>`;
+    return h+`<section class="card"><h2>Spelregels</h2><div class="row" style="margin:0"><label class="lab" style="margin:0">Tijd per vraag<select id="lim"><option value="10">10 seconden</option><option value="20" selected>20 seconden</option><option value="30">30 seconden</option><option value="60">60 seconden</option></select></label><label class="lab" style="margin:0">Leestijd<select id="rd"><option value="0">Geen</option><option value="3" selected>3 seconden</option><option value="5">5 seconden</option><option value="8">8 seconden</option></select></label></div><p class="mut">Net als bij Kahoot: een goed antwoord levert tot 1000 punten op. Direct antwoorden geeft 1000, in de laatste seconde 500. Meerdere goede antwoorden achter elkaar geven een reeksbonus, van +100 oplopend tot +500. Fout of te laat geeft 0 punten. De quiz gaat per onderwerp: eerst wordt het onderwerp aangekondigd, en elke vraag begint met aftellen, 3, 2, 1. Tijdens de leestijd staat alleen de vraag op het scherm. Wie de vraag heeft gemaakt, doet bij die vraag niet mee. Het antwoord wordt getoond zodra iedereen heeft geantwoord of de tijd om is.</p></section><div class="row"><button class="btn big" data-a="start"${ids.length?'':' disabled'}>Start de quiz</button></div><p class="on-green">Wie geen vragen maakt, kan toch meedoen met de code zodra de quiz loopt.</p>`;
   }
   if(g.phase==='done'){
     return h+`<section class="card" style="position:relative;overflow:hidden">${confetti()}<h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,hm0())}</section><div class="row"><button class="btn" data-a="start">Nog een keer spelen</button><button class="btn sec" data-a="csv">Uitslag downloaden</button><button class="btn sec" data-a="leave">Quiz afsluiten</button></div>`;
   }
   const c=g.cur;if(!c)return h;
+  if(!g.rev&&stage(g)==='cd')return h+cdCard(g,S.hostMe&&c.aid===S.hostMe.id?'<p>Dit is jouw onderwerp. Bij deze vragen speel je niet mee.</p>':'');
   const hm=S.hostMe,rev=g.rev,answers=Object.values(S.ans),cnt=[0,0,0,0];
   answers.forEach(a=>{cnt[a.a]++});
   let opts;
@@ -606,7 +675,7 @@ function hostView(){
   if(reading)opts='<p class="mut">De antwoorden verschijnen zo…</p>';
   else if(hm&&!rev&&c.aid!==hm.id&&S.myAns==null)opts=optsBtn(c.o);
   else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
-  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${S.trial?'':', van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${pic(c.img)}${opts}</section>`;
+  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${c.img?`<div class="qgrid"><div>${pic(c.img,!!hm)}</div><div>${opts}</div></div>`:opts}${hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':''}</section>`;
   if(S.trial&&!rev&&c.n===1)h+=`<p class="on-green">Tik op het goede antwoord. Hoe sneller je goed antwoordt, hoe meer punten: tot 1000 per vraag.</p>`;
   if(rev&&hm&&c.aid!==hm.id){
     const ok=S.myAns===g.c,gain=(g.gains||{})[hm.id]||0,st=(g.streaks||{})[hm.id]||0,b=(g.bon||{})[hm.id]||0;
@@ -624,6 +693,7 @@ const expected=()=>{
   return n+(me&&me!==aid?1:0);
 };
 const hm0=()=>S.hostMe?S.hostMe.id:'';
+const takenBy0=()=>{const t={};Object.keys(S.qs).forEach(id=>{const x=S.qs[id];if(x.topic)t[x.topic]=(t[x.topic]?t[x.topic]+' en ':'')+x.name});return t};
 function view(){
   if(!DB)return `<div class="alert">De database is niet bereikbaar. Meedoen en een quiz maken lukt nu niet, de testquiz wel. Controleer je internetverbinding en ververs de pagina.</div>`+home();
   const b=DEMO&&!S.trial?'<div class="alert" style="background:var(--g7)">Voorbeeldmodus: niets wordt opgeslagen en alles verdwijnt bij verversen. Gebruik de code DEMO, als quizmaster of als speler.</div>':'';
@@ -636,7 +706,7 @@ function render(){
   app.innerHTML=(S.err?`<div class="alert" role="alert">${esc(S.err)}</div>`:'')+view();
   Object.keys(keep).forEach(k=>{const e=$(k);if(e&&keep[k]&&e.type!=='file')e.value=keep[k]});
   Object.keys(rad).forEach(n=>{const e=app.querySelector(`input[name="${n}"][value="${rad[n]}"]`);if(e)e.checked=true});
-  S.imgs.forEach((d,i)=>{const pv=$('pv'+i);if(pv&&d){pv.src=d;pv.hidden=false}});
+  S.imgs.forEach((d,i)=>{const pv=$('pv'+i),dl=$('dl'+i);if(pv&&d){pv.src=d;pv.hidden=false;if(dl)dl.hidden=false}});
   if(fo&&$(fo)&&$(fo).focus){try{$(fo).focus();const l=$(fo).value.length;$(fo).setSelectionRange(l,l)}catch(e){}}
 }
 
@@ -666,11 +736,14 @@ document.addEventListener('click',e=>{
   else if(a==='editform')openForm();
   else if(a==='closeform'){S.formOpen=false;render()}
   else if(a==='hostme')setHostMe($('hn').value);
+  else if(a==='zoom')zoom(b.getAttribute('src'));
+  else if(a==='savetopics')saveTopics();
+  else if(a==='delimg'){const i=+b.dataset.i;S.imgs[i]='';const pv=$('pv'+i),fi=$('fi'+i);if(pv){pv.hidden=true;pv.removeAttribute('src')}if(fi)fi.value='';b.hidden=true}
 });
 document.addEventListener('change',e=>{
   const t=e.target,i=t.dataset&&t.dataset.f;
   if(i==null||!t.files||!t.files[0])return;
-  resize(t.files[0],d=>{S.imgs[+i]=d;const pv=$('pv'+i);if(pv){pv.src=d;pv.hidden=false}});
+  resize(t.files[0],d=>{S.imgs[+i]=d;const pv=$('pv'+i),dl=$('dl'+i);if(pv){pv.src=d;pv.hidden=false}if(dl)dl.hidden=false});
 });
 let tickN=0;
 setInterval(()=>{
@@ -682,9 +755,13 @@ setInterval(()=>{
   if(g.rev)return;
   const lim=(g.limit||20)*1000,el=elapsed(g);
   const tm=$('tm'),tb=$('tb');
-  const rdNow=el<0;
-  if(S.rdState===true&&!rdNow){S.rdState=false;render()}
-  else if(S.rdState===undefined)S.rdState=rdNow;
+  const st=stage(g),sk=st+(st==='cd'?cdNum(g):'');
+  if(sk!==S.stKey){
+    const prev=S.stKey||'';S.stKey=sk;
+    if(st==='cd'){const n=cdNum(g);if(prev===''&&g.cur.first)sfx('join');if(n<=3)sfx('tick')}
+    else if(prev.startsWith('cd'))sfx('start');
+    render();
+  }
   const left=Math.ceil((lim-el)/1000);
   if(el>=0&&left<=5&&left>=1&&left!==S.lastTick){S.lastTick=left;sfx('tick')}
   if(tm)tm.textContent=Math.max(0,Math.ceil((lim-el)/1000));
