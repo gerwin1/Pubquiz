@@ -224,7 +224,7 @@ else try{firebase.initializeApp(FB);DB=firebase.firestore()}catch(e){}
 const REAL=DB;
 
 /* ---- helpers ---- */
-const PER=5,SYM=['▲','◆','●','■'],LET=['A','B','C','D'];
+const PER=7,SYM=['▲','◆','●','■'],LET=['A','B','C','D'];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const idOf=n=>n.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,30)||'speler';
@@ -655,7 +655,7 @@ function hostView(){
   if(S.trial&&g.phase==='done'){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id==='jij')+1;
     return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}<div class="result">${rk===1?'Gewonnen!':'Plek '+rk}</div><h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,'jij')}</section>
-    <section class="card try"><h2>Zo werkt het met je vrienden</h2><ol><li>De quizmaster kiest Nieuwe quiz maken en deelt de code van vier letters.</li><li>Iedereen maakt in eigen tempo vijf vragen met vier antwoorden, desnoods weken van tevoren.</li><li>Op de quizavond start de quizmaster en antwoordt iedereen op de eigen telefoon.</li></ol></section>
+    <section class="card try"><h2>Zo werkt het met je vrienden</h2><ol><li>De quizmaster kiest Nieuwe quiz maken en deelt de code van vier letters.</li><li>Iedereen maakt in eigen tempo zeven vragen met vier antwoorden, desnoods weken van tevoren.</li><li>Op de quizavond start de quizmaster en antwoordt iedereen op de eigen telefoon.</li></ol></section>
     <div class="row"><button class="btn big" data-a="leave">Terug naar de start</button><button class="btn sec" data-a="start" style="color:var(--ivory)">Nog een keer</button></div>`;
   }
   if(g.phase==='collect'){
