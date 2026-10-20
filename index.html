@@ -145,6 +145,35 @@ textarea,input[type=text],select{max-width:100%}
 .wait .big{font-size:2.4rem}
 @media(prefers-reduced-motion:reduce){.board .nm i{animation:none}}
 @media(max-width:520px){.opt{min-height:56px;padding:.75em 1em}img.pic{max-height:min(25vh,280px)}.qf img.pic{max-height:170px}}
+/* tussenstand en groot scherm */
+.board .nm em{float:right;font-style:normal;font-weight:700;color:var(--g7);margin-left:10px}
+.stand h2{font-size:clamp(1.6rem,2vw + 1vh,2.6rem);margin:.1em 0 .5em}
+.strip{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:12px 0}
+.strip .row{margin:0}
+.who{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.who .lbl{font-weight:700;margin-right:4px}
+.chipn{background:rgba(255,255,255,.12);color:var(--ivory);border-radius:99px;padding:5px 12px;font-weight:600;opacity:.6}
+.chipn.on{background:var(--ivory);color:var(--ink);opacity:1}
+.chipn.ok{background:#2e9a62;color:#fff;opacity:1}
+.chipn.no{background:var(--o0);color:#fff;opacity:1}
+.chipn.mine{outline:3px solid var(--brass);outline-offset:1px}
+.mres{font-family:"Alfa Slab One",Georgia,serif;font-size:1.4rem;color:var(--brass);margin-right:14px}
+@media(min-width:900px){
+  body.host main{max-width:min(1500px,94vw);padding-top:6px;padding-bottom:16px}
+  body.host .card{margin:10px 0}
+  body.host .q{font-size:clamp(1.6rem,1rem + 3vh,3.2rem);margin:.15em 0 .3em}
+  body.host .opt{min-height:clamp(64px,14vh,150px);font-size:clamp(1.3rem,.7rem + 2.2vh,2.4rem)}
+  body.host .qgrid .opt{min-height:clamp(52px,8vh,92px);font-size:clamp(1.15rem,.6rem + 1.6vh,1.9rem)}
+  body.host .qgrid img.pic{max-height:min(42vh,600px)}
+  body.host .zhint{display:none}
+  body.host .timer{width:3.2rem;height:3.2rem;font-size:1.7rem}
+  body.host .tline{margin:4px 0}
+  body.host .board li .nm{font-size:clamp(1.05rem,.6rem + 1.3vh,1.6rem);padding:clamp(6px,1vh,12px) 14px}
+  body.host .board li:first-child .nm{font-size:clamp(1.15rem,.7rem + 1.5vh,1.8rem)}
+  body.host .board b,body.host .board .rk{font-size:clamp(1.1rem,.6rem + 1.4vh,1.8rem)}
+  body.host .board{gap:clamp(5px,.9vh,10px)}
+  .endcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:28px;align-items:end}
+}
 </style>
 </head>
 <body>
@@ -193,7 +222,10 @@ function demoSeed(store){
     ['Bram',[['Welke kleur krijg je door blauw en geel te mengen?',['Groen','Paars','Oranje','Bruin'],0],['Hoe heet de hoogste berg ter wereld?',['K2','Mount Everest','Mont Blanc','Kilimanjaro'],1]]],
     ['Chloe',[['In welk jaar begon de Eerste Wereldoorlog?',['1904','1914','1918','1939'],1],['Welk element heeft symbool O?',['Goud','Osmium','Zuurstof','IJzer'],2]]]
   ];
-  const T={Anna:'Vakanties',Bram:'De vriendengroep',Chloe:'Geschiedenis'};
+  Q.push(['Dirk',[['Hoeveel provincies heeft Nederland?',['10','11','12','13'],2],['Met welke munt betaal je in Nederland?',['Gulden','Euro','Frank','Kroon'],1]]],
+    ['Eva',[['In welke stad wordt het festival Noorderzon gehouden?',['Groningen','Leeuwarden','Assen','Zwolle'],0],['In welke plaats wordt Pinkpop gehouden?',['Biddinghuizen','Landgraaf','Hellendoorn','Lichtenvoorde'],1]]],
+    ['Fleur',[['Hoe heet de bekende toren in het centrum van Groningen?',['Martinitoren','Domtoren','Westertoren','Oldehove'],0],['Hoe heet het grote plein bij het stadhuis van Groningen?',['Dam','Grote Markt','Vrijthof','Neude'],1]]]);
+  const T={Anna:'Vakanties',Bram:'De vriendengroep',Chloe:'Geschiedenis',Dirk:'Actualiteit',Eva:'Festivals',Fleur:'Stad Groningen'};
   store['games/DEMO']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},topics:TOPICS,created:Date.now()};
   Q.forEach(([n,qs])=>{store['games/DEMO/questions/'+n.toLowerCase()]={name:n,topic:T[n],ts:Date.now(),qs:qs.map(([q,o,c])=>({q,o,c,img:''}))}});
 }
@@ -481,7 +513,7 @@ async function startQuiz(){
   const scores={};
   if(!S.trial)ids.forEach(id=>{scores[id]={n:S.qs[id].name,s:0}});
   Object.keys(S.players).forEach(id=>{if(!scores[id])scores[id]={n:S.players[id].name,s:0}});
-  try{await ref(S.code).update({phase:'play',run:(S.game.run||0)+1,idx:0,rev:false,c:-1,order,scores,gains:{},bon:{},streaks:{},limit:lim,rd,t0:TS(),cur:curFor(order,0)})}catch(e){dbErr()}
+  try{await ref(S.code).update({phase:'play',run:(S.game.run||0)+1,idx:0,rev:false,c:-1,order,scores,gains:{},bon:{},streaks:{},sb:false,limit:lim,rd,t0:TS(),cur:curFor(order,0)})}catch(e){dbErr()}
 }
 function calcRound(g,got,q,t0){
   const lim=(g.limit||20)*1000,scores=cl(g.scores||{}),streaks=cl(g.streaks||{}),gains={},bon={};
@@ -516,12 +548,15 @@ async function revealQ(){
     });
   }catch(e){S.revealing=false;dbErr()}
 }
+async function showBoard(){
+  try{await ref(S.code).update({sb:true})}catch(e){dbErr()}
+}
 async function nextQ(){
   const g=S.game,i=g.idx+1;
   if(i<g.order.length&&!S.qs[g.order[i].split('|')[0]]){fail('De vragen worden nog geladen. Probeer het zo opnieuw.');return}
   try{
-    if(i>=g.order.length)await ref(S.code).update({phase:'done',rev:false,c:-1});
-    else await ref(S.code).update({idx:i,rev:false,c:-1,gains:{},bon:{},t0:TS(),cur:curFor(g.order,i)});
+    if(i>=g.order.length)await ref(S.code).update({phase:'done',rev:false,sb:false,c:-1});
+    else await ref(S.code).update({idx:i,rev:false,sb:false,c:-1,gains:{},bon:{},t0:TS(),cur:curFor(g.order,i)});
   }catch(e){dbErr()}
 }
 async function copyLink(){
@@ -564,9 +599,9 @@ const podium=sc=>{
   const a=sorted(sc),cols=[[a[1],110,2],[a[0],150,1],[a[2],80,3]].filter(c=>c[0]);
   return `<div class="podium">${cols.map(([x,h,r])=>`<div class="pd"><div class="who">${esc(x.n)}</div><small>${x.s} punten</small><div class="blk" style="height:${h}px">${r}</div></div>`).join('')}</div>`;
 };
-const board=(sc,me,top)=>{
+const board=(sc,me,top,gains)=>{
   const a=sorted(sc).slice(0,top||99),mx=Math.max(1,...a.map(x=>x.s));
-  return `<ol class="board">${a.map((x,i)=>`<li class="${x.id===me?'me':''}"><span class="rk">${i+1}</span><span class="nm">${esc(x.n)}<i style="width:${Math.round(x.s/mx*100)}%"></i></span><b>${x.s}</b></li>`).join('')}</ol>`;
+  return `<ol class="board">${a.map((x,i)=>`<li class="${x.id===me?'me':''}"><span class="rk">${i+1}</span><span class="nm">${esc(x.n)}${gains&&gains[x.id]?`<em>+${gains[x.id]}</em>`:''}<i style="width:${Math.round(x.s/mx*100)}%"></i></span><b>${x.s}</b></li>`).join('')}</ol>`;
 };
 const optsStatic=(o,c,cnt)=>`<div class="opts">${o.map((t,i)=>`<div class="opt o${i}${c>=0&&i!==c?' dim':''}${c===i?' win':''}">${sy(i)}<span>${esc(t)}</span>${cnt?`<b class="cnt">${cnt[i]}</b>`:''}</div>`).join('')}</div>`;
 const optsBtn=o=>`<div class="opts">${o.map((t,i)=>`<button class="opt o${i}" data-a="ans" data-i="${i}">${sy(i)}<span>${esc(t)}</span></button>`).join('')}</div>`;
@@ -623,9 +658,13 @@ function playerView(){
   }
   if(g.phase==='done'){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id===me.id)+1;
-    return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Eindstand</h2>${board(g.scores,me.id,8)}</section>`;
+    return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Eindstand</h2>${board(g.scores,me.id)}</section>`;
   }
   const c=g.cur;if(!c)return h;
+  if(g.rev&&g.sb){
+    const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id===me.id)+1;
+    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div>${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Tussenstand</h2>${board(g.scores,me.id,0,g.gains)}</section>`;
+  }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,c.aid===me.id?'<p>Dit is jouw onderwerp. Bij deze vragen doe je niet mee.</p>':'');
   h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img,true)}</section>`;
   if(c.aid===me.id)return h+`<section class="card wait"><div class="slab big">Jouw vraag</div><p>Deze vraag heb jij gemaakt, dus je doet niet mee. Kijk maar hoe de rest het doet.</p></section>`;
@@ -654,7 +693,7 @@ function hostView(){
   }
   if(S.trial&&g.phase==='done'){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id==='jij')+1;
-    return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}<div class="result">${rk===1?'Gewonnen!':'Plek '+rk}</div><h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,'jij')}</section>
+    return h+`<section class="card" style="position:relative;overflow:hidden">${rk===1?confetti():''}<div class="result">${rk===1?'Gewonnen!':'Plek '+rk}</div><h2>Eindstand</h2><div class="endcols"><div>${podium(g.scores)}</div><div>${board(g.scores,'jij')}</div></div></section>
     <section class="card try"><h2>Zo werkt het met je vrienden</h2><ol><li>De quizmaster kiest Nieuwe quiz maken en deelt de code van vier letters.</li><li>Iedereen maakt in eigen tempo zeven vragen met vier antwoorden, desnoods weken van tevoren.</li><li>Op de quizavond start de quizmaster en antwoordt iedereen op de eigen telefoon.</li></ol></section>
     <div class="row"><button class="btn big" data-a="leave">Terug naar de start</button><button class="btn sec" data-a="start" style="color:var(--ivory)">Nog een keer</button></div>`;
   }
@@ -671,9 +710,12 @@ function hostView(){
     return h+`<section class="card"><h2>Spelregels</h2><div class="row" style="margin:0"><label class="lab" style="margin:0">Tijd per vraag<select id="lim"><option value="10">10 seconden</option><option value="20" selected>20 seconden</option><option value="30">30 seconden</option><option value="60">60 seconden</option></select></label><label class="lab" style="margin:0">Leestijd<select id="rd"><option value="0">Geen</option><option value="3" selected>3 seconden</option><option value="5">5 seconden</option><option value="8">8 seconden</option></select></label></div><p class="mut">Net als bij Kahoot: een goed antwoord levert tot 1000 punten op. Direct antwoorden geeft 1000, in de laatste seconde 500. Meerdere goede antwoorden achter elkaar geven een reeksbonus, van +100 oplopend tot +500. Fout of te laat geeft 0 punten. De quiz gaat per onderwerp: eerst wordt het onderwerp aangekondigd, en elke vraag begint met aftellen, 3, 2, 1. Tijdens de leestijd staat alleen de vraag op het scherm. Wie de vraag heeft gemaakt, doet bij die vraag niet mee. Het antwoord wordt getoond zodra iedereen heeft geantwoord of de tijd om is.</p></section><div class="row"><button class="btn big" data-a="start"${ids.length?'':' disabled'}>Start de quiz</button></div><p class="on-green">Wie geen vragen maakt, kan toch meedoen met de code zodra de quiz loopt.</p>`;
   }
   if(g.phase==='done'){
-    return h+`<section class="card" style="position:relative;overflow:hidden">${confetti()}<h2>Eindstand</h2>${podium(g.scores)}${board(g.scores,hm0())}</section><div class="row"><button class="btn" data-a="start">Nog een keer spelen</button><button class="btn sec" data-a="csv">Uitslag downloaden</button><button class="btn sec" data-a="leave">Quiz afsluiten</button></div>`;
+    return h+`<section class="card stand" style="position:relative;overflow:hidden">${confetti()}<h2>Eindstand</h2><div class="endcols"><div>${podium(g.scores)}</div><div>${board(g.scores,hm0())}</div></div></section><div class="row"><button class="btn" data-a="start">Nog een keer spelen</button><button class="btn sec" data-a="csv">Uitslag downloaden</button><button class="btn sec" data-a="leave">Quiz afsluiten</button></div>`;
   }
   const c=g.cur;if(!c)return h;
+  if(g.rev&&g.sb){
+    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div><h2>Tussenstand</h2>${board(g.scores,hm0(),0,g.gains)}</section><div class="row"><button class="btn big" data-a="next">Volgende vraag</button></div>`;
+  }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,S.hostMe&&c.aid===S.hostMe.id?'<p>Dit is jouw onderwerp. Bij deze vragen speel je niet mee.</p>':'');
   const hm=S.hostMe,rev=g.rev,answers=Object.values(S.ans),cnt=[0,0,0,0];
   answers.forEach(a=>{cnt[a.a]++});
@@ -684,15 +726,28 @@ function hostView(){
   else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
   h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${c.img?`<div class="qgrid"><div>${pic(c.img,!!hm)}</div><div>${opts}</div></div>`:opts}${hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':''}</section>`;
   if(S.trial&&!rev&&c.n===1)h+=`<p class="on-green">Tik op het goede antwoord. Hoe sneller je goed antwoordt, hoe meer punten: tot 1000 per vraag.</p>`;
-  if(rev&&hm&&c.aid!==hm.id){
-    const ok=S.myAns===g.c,gain=(g.gains||{})[hm.id]||0,st=(g.streaks||{})[hm.id]||0,b=(g.bon||{})[hm.id]||0;
-    h+=`<section class="card ${ok?'good':'bad'}"><div class="result ${ok?'ok':'no'}">${S.myAns==null?'Te laat':ok?'Goed! +'+gain:'Helaas'}</div>${ok&&st>=2?`<p class="ok">Reeks van ${st} goed: bonus +${b}</p>`:''}${ok?'':`<p>Het goede antwoord was <b>${LET[g.c]}. ${esc(c.o[g.c])}</b>.</p>`}</section>`;
+  const lastQ=c.n>=c.tot;
+  let who='';
+  if(rev){
+    const al=answers.slice().sort((x,y)=>(y.a===g.c)-(x.a===g.c));
+    who=`<span class="lbl">Antwoorden</span>${al.length?al.map(a=>`<span class="chipn ${a.a===g.c?'ok':'no'}${hm&&a.p===hm.id?' mine':''}">${esc(a.name)} ${SYM[a.a]}${a.a===g.c?' +'+((g.gains||{})[a.p]||0):''}</span>`).join(''):'<span class="chipn">Niemand heeft geantwoord</span>'}`;
+    if(hm&&c.aid!==hm.id){const ok=S.myAns===g.c,gain=(g.gains||{})[hm.id]||0;who=`<span class="mres">${S.myAns==null?'Te laat':ok?'Goed! +'+gain:'Helaas'}</span>`+who}
+  }else{
+    const done=new Set(answers.map(a=>a.p)),ids=partIds(c.aid);
+    answers.forEach(a=>{if(!ids.includes(a.p))ids.push(a.p)});
+    const nm=id=>(S.players[id]&&S.players[id].name)||(hm&&hm.id===id?hm.name:'')||(S.ans[id]&&S.ans[id].name)||id;
+    who=`<span class="lbl">Geantwoord ${answers.length} van ${expected()}</span>${ids.map(id=>`<span class="chipn${done.has(id)?' on':''}">${esc(nm(id))}</span>`).join('')}`;
   }
-  h+=`<section class="card"><h2>Antwoorden (${answers.length}${rev?'':' van '+expected()})</h2>${answers.length?answers.map(a=>`<div class="sc"><span>${esc(a.name)}</span><span>${rev?`${SYM[a.a]} ${LET[a.a]}${a.a===g.c?` <span class="ok">✓ +${(g.gains||{})[a.p]||0}</span>`:' <span class="no">✗</span>'}`:'<span class="mut">heeft geantwoord</span>'}</span></div>`).join(''):'<p class="mut">Nog geen antwoorden binnen.</p>'}</section>`;
-  h+=`<div class="row">${rev?`<button class="btn big" data-a="next">${c.n>=c.tot?'Naar de eindstand':'Volgende vraag'}</button>`:'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq">Vraag overslaan</button>')}</div>`;
-  if(rev)h+=`<section class="card"><h2>Tussenstand, top 5</h2>${board(g.scores,hm?hm.id:'',5)}</section>`;
+  const btns=rev?(lastQ?'<button class="btn big" data-a="next">Naar de eindstand</button>':'<button class="btn big" data-a="board">Tussenstand</button>'):'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq" style="color:var(--ivory)">Vraag overslaan</button>');
+  h+=`<div class="strip"><div class="who">${who}</div><div class="row">${btns}</div></div>`;
   return h;
 }
+const partIds=aid=>{
+  const me=S.hostMe?S.hostMe.id:'';
+  const ids=Object.keys(S.players).filter(id=>id!==aid&&(S.trial||id===me||(S.players[id].seen&&Date.now()-S.players[id].seen<45000)));
+  if(me&&me!==aid&&!ids.includes(me))ids.push(me);
+  return ids;
+};
 const expected=()=>{
   const g=S.game,aid=g&&g.cur?g.cur.aid:'',me=S.hostMe?S.hostMe.id:'';
   if(S.trial)return Object.keys(S.players).filter(id=>id!==aid).length;
@@ -710,6 +765,7 @@ function render(){
   const keep={},rad={},fo=document.activeElement&&document.activeElement.id;
   app.querySelectorAll('input[id],textarea[id],select[id]').forEach(e=>{keep[e.id]=e.value});
   app.querySelectorAll('input[type=radio]:checked').forEach(e=>{rad[e.name]=e.value});
+  document.body.classList.toggle('host',S.role==='host');
   app.innerHTML=(S.err?`<div class="alert" role="alert">${esc(S.err)}</div>`:'')+view();
   Object.keys(keep).forEach(k=>{const e=$(k);if(e&&keep[k]&&e.type!=='file')e.value=keep[k]});
   Object.keys(rad).forEach(n=>{const e=app.querySelector(`input[name="${n}"][value="${rad[n]}"]`);if(e)e.checked=true});
@@ -731,6 +787,7 @@ document.addEventListener('click',e=>{
   else if(a==='start')startQuiz();
   else if(a==='reveal')revealQ();
   else if(a==='next')nextQ();
+  else if(a==='board')showBoard();
   else if(a==='copy')copyLink();
   else if(a==='snd'){ls.set(sndKey(),!sndOn());sfx('lock');render()}
   else if(a==='fs'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(x){}}
