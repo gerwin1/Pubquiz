@@ -179,6 +179,21 @@ textarea,input[type=text],select{max-width:100%}
 .pill.off{opacity:.55}
 .onl{font-weight:700}
 .ver{position:fixed;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);font-size:10px;line-height:1;color:var(--ivory);opacity:.45;pointer-events:none;z-index:5;white-space:nowrap}
+/* foto's: groot op het grote scherm, klein op de telefoon */
+@media(max-width:520px){
+  img.pic{max-height:min(17vh,190px);margin:6px auto}
+  .zhint{display:none}
+  .opts.g2{grid-template-columns:1fr 1fr;gap:8px}
+  .opts.g2 .opt{min-height:62px;padding:.55em .7em;font-size:1rem;gap:.45em}
+}
+@media(max-width:520px) and (max-height:700px){img.pic{max-height:min(12vh,130px);margin:4px auto}.opt{min-height:44px;padding:.45em .8em;font-size:.95rem}.q{font-size:1.15rem}.opts{gap:7px;margin-top:10px}}
+@media(min-width:900px){
+  body.host .qgrid{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:24px;align-items:center}
+  body.host .qgrid img.pic{max-height:min(calc(100vh - 390px),820px);width:100%;object-fit:contain;margin:0 auto}
+  body.host .card.hasimg .q{font-size:clamp(1.35rem,.8rem + 2.4vh,2.6rem)}
+  body.host .qgrid .opt{min-height:clamp(48px,8vh,96px)}
+  body.host .qgrid .opts{gap:clamp(6px,1vh,12px)}
+}
 </style>
 </head>
 <body>
@@ -674,8 +689,9 @@ const board=(sc,me,top,gains)=>{
   const a=sorted(sc).slice(0,top||99),mx=Math.max(1,...a.map(x=>x.s));
   return `<ol class="board">${a.map((x,i)=>`<li class="${x.id===me?'me':''}"><span class="rk">${i+1}</span><span class="nm">${esc(x.n)}${gains&&gains[x.id]?`<em>+${gains[x.id]}</em>`:''}<i style="width:${Math.round(x.s/mx*100)}%"></i></span><b>${x.s}</b></li>`).join('')}</ol>`;
 };
-const optsStatic=(o,c,cnt)=>`<div class="opts">${o.map((t,i)=>`<div class="opt o${i}${c>=0&&i!==c?' dim':''}${c===i?' win':''}">${sy(i)}<span>${esc(t)}</span>${cnt?`<b class="cnt">${cnt[i]}</b>`:''}</div>`).join('')}</div>`;
-const optsBtn=o=>`<div class="opts">${o.map((t,i)=>`<button class="opt o${i}" data-a="ans" data-i="${i}">${sy(i)}<span>${esc(t)}</span></button>`).join('')}</div>`;
+const g2=o=>Math.max(...o.map(t=>String(t).length))<=24;
+const optsStatic=(o,c,cnt,img)=>`<div class="opts${img&&g2(o)?' g2':''}">${o.map((t,i)=>`<div class="opt o${i}${c>=0&&i!==c?' dim':''}${c===i?' win':''}">${sy(i)}<span>${esc(t)}</span>${cnt?`<b class="cnt">${cnt[i]}</b>`:''}</div>`).join('')}</div>`;
+const optsBtn=(o,img)=>`<div class="opts${img&&g2(o)?' g2':''}">${o.map((t,i)=>`<button class="opt o${i}" data-a="ans" data-i="${i}">${sy(i)}<span>${esc(t)}</span></button>`).join('')}</div>`;
 const timerHtml=g=>{const lim=(g.limit||20)*1000,el=Math.min(lim,Math.max(0,elapsed(g)));return `<div class="tline"><span class="timer" id="tm">${Math.ceil((lim-el)/1000)}</span><div class="tbar"><i id="tb" style="width:${Math.round((1-el/lim)*100)}%"></i></div></div>`};
 const pic=(s,hint)=>s?`<img class="pic" src="${s}" alt="Foto bij de vraag" data-a="zoom">${hint?'<p class="zhint">Tik op de foto om te vergroten</p>':''}`:'';
 const tchip=c=>c.topic?`<span class="tchip">${esc(c.topic)}</span>`:'';
@@ -737,7 +753,7 @@ function playerView(){
     return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div>${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Tussenstand</h2>${board(g.scores,me.id,0,g.gains)}</section>`;
   }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,c.aid===me.id?'<p>Dit is jouw onderwerp. Bij deze vragen doe je niet mee.</p>':'');
-  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img,true)}</section>`;
+  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img)}</section>`;
   if(c.aid===me.id)return h+`<section class="card wait"><div class="slab big">Jouw vraag</div><p>Deze vraag heb jij gemaakt, dus je doet niet mee. Kijk maar hoe de rest het doet.</p></section>`;
   if(g.rev){
     const gain=(g.gains||{})[me.id]||0,b=(g.bon||{})[me.id]||0,st=(g.streaks||{})[me.id]||0,ok=S.myAns===g.c;
@@ -745,9 +761,9 @@ function playerView(){
     const pos=rk?(rk===1?'Je staat bovenaan.':`Plek ${rk}, ${lead.s-mine} punten achter ${esc(lead.n)}.`):'';
     return h+`<section class="card ${ok?'good':'bad'}"><div class="result ${ok?'ok':'no'}">${S.myAns==null?'Te laat':ok?'Goed! +'+gain:'Helaas'}</div>${ok&&st>=2?`<p class="ok">Reeks van ${st} goed: bonus +${b}</p>`:''}<p>Het goede antwoord was <b>${LET[g.c]}. ${esc(c.o[g.c])}</b>.</p><p class="mut">Jouw score: ${mine}. ${pos}</p></section>`;
   }
-  if(S.myAns!=null)return h+`<section class="card wait"><div class="slab big">Vastgelegd</div><p>Je koos antwoord ${LET[S.myAns]}. Wacht tot de tijd om is.</p></section>${optsStatic(c.o,S.myAns,null)}`;
+  if(S.myAns!=null)return h+`<section class="card wait"><div class="slab big">Vastgelegd</div><p>Je koos antwoord ${LET[S.myAns]}. Wacht tot de tijd om is.</p></section>${optsStatic(c.o,S.myAns,null,!!c.img)}`;
   if(elapsed(g)<0)return h+`<section class="card wait"><p>Lees de vraag. De antwoorden verschijnen zo…</p></section>`;
-  return h+timerHtml(g)+optsBtn(c.o);
+  return h+timerHtml(g)+optsBtn(c.o,!!c.img);
 }
 function hostView(){
   const g=S.game;
@@ -808,9 +824,9 @@ function hostView(){
   let opts;
   const reading=!rev&&elapsed(g)<0;
   if(reading)opts='<p class="mut">De antwoorden verschijnen zo…</p>';
-  else if(hm&&!rev&&c.aid!==hm.id&&S.myAns==null)opts=optsBtn(c.o);
-  else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
-  h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${c.img?`<div class="qgrid"><div>${pic(c.img,!!hm)}</div><div>${opts}</div></div>`:opts}${hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':''}</section>`;
+  else if(hm&&!rev&&c.aid!==hm.id&&S.myAns==null)opts=optsBtn(c.o,!!c.img);
+  else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null,!!c.img)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
+  h+=`<section class="card${c.img?' hasimg':''}"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${c.img?`<div class="qgrid"><div>${pic(c.img)}</div><div>${opts}</div></div>`:opts}${hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':''}</section>`;
   if(S.trial&&!rev&&c.n===1)h+=`<p class="on-green">Tik op het goede antwoord. Hoe sneller je goed antwoordt, hoe meer punten: tot 1000 per vraag.</p>`;
   const lastQ=c.n>=c.tot;
   let who='';
@@ -950,7 +966,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 14 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 15 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
