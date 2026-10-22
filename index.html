@@ -178,10 +178,12 @@ textarea,input[type=text],select{max-width:100%}
 .dot.on{background:#3ad07a;box-shadow:0 0 0 3px rgba(58,208,122,.25)}
 .pill.off{opacity:.55}
 .onl{font-weight:700}
+.ver{position:fixed;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 4px);font-size:10px;line-height:1;color:var(--ivory);opacity:.45;pointer-events:none;z-index:5;white-space:nowrap}
 </style>
 </head>
 <body>
 <main id="app"></main>
+<footer class="ver" id="ver" aria-hidden="true"></footer>
 <script>
 (()=>{
 /* ---- Firebase ---- */
@@ -290,12 +292,12 @@ let AC=null;
 const sndKey=()=>'pq-snd-'+(S.role==='host'?'h':'p');
 const sndOn=()=>{const v=ls.get(sndKey());return v==null?S.role==='host':v};
 let SFXBUS=null,MUSBUS=null,NOISE=null;
-const SFX_LVL=1.8,MUS_LVL=2.1,MUS_DUCK=.6;
+const SFX_LVL=2.4,MUS_LVL=2.9,MUS_DUCK=.75;
 function ac(){
   if(!AC){try{
     AC=new (window.AudioContext||window.webkitAudioContext)();
-    const comp=AC.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=12;comp.ratio.value=4;comp.attack.value=.004;comp.release.value=.2;
-    const master=AC.createGain();master.gain.value=1.15;comp.connect(master);master.connect(AC.destination);
+    const comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=10;comp.ratio.value=8;comp.attack.value=.004;comp.release.value=.2;
+    const master=AC.createGain();master.gain.value=1.25;comp.connect(master);master.connect(AC.destination);
     SFXBUS=AC.createGain();SFXBUS.gain.value=SFX_LVL;SFXBUS.connect(comp);
     MUSBUS=AC.createGain();MUSBUS.gain.value=MUS_LVL;MUSBUS.connect(comp);
     NOISE=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=NOISE.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
@@ -368,29 +370,38 @@ function note(m,at,d,type,vol){
   g.gain.setValueAtTime(.0001,at);g.gain.linearRampToValueAtTime(vol,at+.01);g.gain.exponentialRampToValueAtTime(.0001,at+d);
   o.connect(g);g.connect(MUSBUS||a.destination);o.start(at);o.stop(at+d+.05);
 }
-const SONG=[[45,[57,60,64]],[41,[53,57,60]],[48,[55,60,64]],[43,[55,59,62]]];
-const EIGHTH=60/132/2;
+const SONG=[[48,[60,64,67]],[43,[59,62,67]],[45,[57,60,64]],[41,[57,60,65]]];
+const EIGHTH=60/128/2;
+const HOOK=[[0,2,1,0],[2,1,0,1],[0,1,2,1],[2,2,1,0]];
 let HOT=false;
 function musStep(i,at){
-  const [root,ch]=SONG[(i>>3)%4],k=i%8;
-  if(k===0||k===3||k===4||k===6)note(root,at,EIGHTH*1.6,'triangle',.11);
-  note(ch[[0,1,2,1,0,1,2,1][k]]+12,at,EIGHTH*.8,'square',.022);
-  if(k%2===1)note(ch[2]+24,at,.05,'sine',.012);
-  if(k===0||k===4)kick(at,.32,MUSBUS);
-  if(k===2||k===6)noise(at,.14,.07,'bandpass',1600,MUSBUS);
-  noise(at,.035,k%2?.035:.02,'highpass',8000,MUSBUS);
-  if(HOT){noise(at+EIGHTH/2,.03,.03,'highpass',8000,MUSBUS);if(k%2===0)note(ch[0]+24,at,.08,'square',.015)}
+  const bar=(i>>3)%4,[root,ch]=SONG[bar],k=i%8,drive=MUS&&MUS.mode==='drive';
+  if(k===0)ch.forEach(n=>note(n,at,EIGHTH*7.5,'sine',drive?.016:.022));
+  if(k===0||k===3||k===4||k===6)note(root,at,EIGHTH*1.5,'triangle',drive?.14:.11);
+  note(ch[[0,1,2,1,0,1,2,1][k]]+12,at,EIGHTH*.8,'square',drive?.03:.017);
+  if(drive){
+    if(k%2===0)kick(at,.36,MUSBUS);
+    if(k===2||k===6)noise(at,.16,.1,'bandpass',1600,MUSBUS);
+    noise(at,.03,.045,'highpass',8000,MUSBUS);noise(at+EIGHTH/2,.025,.025,'highpass',9000,MUSBUS);
+    if(k%2===0)note(ch[HOOK[bar][k>>1]]+24,at,EIGHTH*1.6,'triangle',.05);
+    if(HOT){noise(at+EIGHTH/4,.02,.03,'highpass',9000,MUSBUS);noise(at+EIGHTH*3/4,.02,.03,'highpass',9000,MUSBUS);note(ch[0]+36,at,.06,'square',.012)}
+  }else{
+    if(k===0||k===4)kick(at,.3,MUSBUS);
+    if(k===2||k===6)noise(at,.12,.05,'bandpass',1500,MUSBUS);
+    if(k%2===1)noise(at,.03,.035,'highpass',8000,MUSBUS);
+  }
 }
 function musSched(){
   if(!MUS||!AC)return;
   if(MUSBUS){const sp=hasTTS()&&speechSynthesis.speaking;MUSBUS.gain.setTargetAtTime(sp?MUS_DUCK:MUS_LVL,AC.currentTime,.08)}
   while(MUS.next<AC.currentTime+.25){musStep(MUS.step,MUS.next);MUS.step=(MUS.step+1)%32;MUS.next+=EIGHTH}
 }
-function musicSync(want){
+function musicSync(mode){
   try{
-    if(want&&!outHere())want=false;
-    if(want&&sndOn()&&!MUS){const a=ac();if(!a||a.state!=='running')return;MUS={next:a.currentTime+.05,step:0,t:setInterval(musSched,60)};musSched()}
-    else if((!want||!sndOn())&&MUS){clearInterval(MUS.t);MUS=null}
+    if(mode&&(!outHere()||!sndOn()))mode=null;
+    if(mode&&!MUS){const a=ac();if(!a||a.state!=='running')return;MUS={next:a.currentTime+.05,step:0,mode,t:setInterval(musSched,60)};musSched()}
+    else if(!mode&&MUS){clearInterval(MUS.t);MUS=null}
+    else if(MUS)MUS.mode=mode;
   }catch(e){}
 }
 
@@ -907,7 +918,12 @@ setInterval(()=>{
   if(S.view&&tickN%60===0)scrBeat();
   if((S.role==='player'||(S.role==='host'&&S.hostMe))&&tickN%60===0)beat();
   if(S.role==='host'&&g&&g.phase==='collect'&&tickN%20===0&&!S.formOpen){const sg=onSig();if(sg!==S.onSig){S.onSig=sg;render()}}
-  {let want=false;if(g&&g.phase==='play'&&g.cur&&!g.rev&&S.role==='host'){const e=elapsed(g);want=e>=0&&e<(g.limit||20)*1000}musicSync(want)}
+  {let mode=null;
+   if(g&&S.role==='host'&&!S.formOpen){
+     if(g.phase==='play'&&g.cur){const e=elapsed(g);mode=!g.rev&&e>=0&&e<(g.limit||20)*1000?'drive':'chill'}
+     else mode='chill';
+   }
+   musicSync(mode)}
   if(!g||g.phase!=='play'||!g.cur)return;
   if(g.rev)return;
   const lim=(g.limit||20)*1000,el=elapsed(g);
@@ -934,6 +950,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
+{const el=$('ver');if(el){let t='Versie 14 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
