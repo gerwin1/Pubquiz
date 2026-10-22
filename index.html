@@ -149,7 +149,7 @@ textarea,input[type=text],select{max-width:100%}
 .board .nm em{float:right;font-style:normal;font-weight:700;color:var(--g7);margin-left:10px}
 .stand h2{font-size:clamp(1.6rem,2vw + 1vh,2.6rem);margin:.1em 0 .5em}
 .strip{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:12px 0}
-.strip .row{margin:0 0 0 auto}
+.strip .row{margin:0 0 0 auto;justify-content:flex-end}
 .who{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
 .who .lbl{font-weight:700;margin-right:4px}
 .chipn{background:rgba(255,255,255,.12);color:var(--ivory);border-radius:99px;padding:5px 12px;font-weight:600;opacity:.6}
@@ -271,7 +271,7 @@ const SNAP={serverTimestamps:'estimate'};
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 
 /* ---- state ---- */
-const S={trial:false,allQs:{},players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
+const S={trial:false,view:false,armed:false,allQs:{},players:{},revealing:false,role:'home',code:'',me:null,hostMe:null,game:null,qs:{},ans:{},mine:null,skip:false,formOpen:false,imgs:[],myAns:null,tq:0,curKey:'',err:'',unsubs:[],ansUnsub:null,busy:false};
 let errT=null;
 const fail=m=>{S.err=m;render();clearTimeout(errT);errT=setTimeout(()=>{S.err='';render()},7000)};
 const dbErr=()=>fail('Geen toegang tot de database. Controleer de Firestore-regels en je verbinding.');
@@ -307,7 +307,30 @@ const SFX={
   bad:()=>{tone(196,0,.28,'sawtooth',.09);tone(165,.14,.38,'sawtooth',.09)},
   win:()=>[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,i*.14,.38,'triangle',.16))
 };
-const sfx=n=>{try{if(sndOn()&&SFX[n]){ac();SFX[n]()}}catch(e){}};
+const scrOn=()=>{const g=S.game;return !!(g&&g.scr&&Date.now()-g.scr<45000)};
+const outHere=()=>S.trial||S.role!=='host'||S.view||!scrOn();
+const sfx=n=>{try{if(sndOn()&&outHere()&&SFX[n]){ac();SFX[n]()}}catch(e){}};
+/* ---- voorlezen met een Nederlandse stem ---- */
+let VOICE=null;
+const hasTTS=()=>'speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+function pickVoice(){
+  if(!hasTTS())return;
+  const vs=speechSynthesis.getVoices().filter(v=>/^nl/i.test(v.lang));
+  const nl=vs.filter(v=>/^nl[-_]NL/i.test(v.lang));
+  VOICE=nl.find(v=>/google|natural|neural|online|premium|enhanced|siri/i.test(v.name))||nl[0]||vs[0]||null;
+}
+if(hasTTS()){pickVoice();speechSynthesis.addEventListener&&speechSynthesis.addEventListener('voiceschanged',()=>{pickVoice();if(S.role==='host'&&S.game&&S.game.phase==='collect')render()})}
+const ttsOn=()=>{const v=ls.get('pq-tts');return v==null?true:v};
+function say(text,force){
+  try{
+    if(!hasTTS()||!text)return;
+    if(!force&&(!ttsOn()||!sndOn()||!outHere()||S.role!=='host'))return;
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);u.lang='nl-NL';if(VOICE)u.voice=VOICE;u.rate=1;u.pitch=1;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function arm(){S.armed=true;try{ac()}catch(e){}try{if(hasTTS()){const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}catch(e){}}
 /* ---- achtergrondmuziek tijdens het aftellen ---- */
 let MUS=null;
 const mtof=m=>440*Math.pow(2,(m-69)/12);
@@ -321,8 +344,9 @@ const SONG=[[45,[57,60,64]],[41,[53,57,60]],[48,[55,60,64]],[43,[55,59,62]]];
 const EIGHTH=60/132/2;
 function musStep(i,at){
   const [root,ch]=SONG[(i>>3)%4],k=i%8;
-  if(k===0||k===3||k===4||k===6)note(root,at,EIGHTH*1.6,'triangle',.11);
-  note(ch[[0,1,2,1,0,1,2,1][k]]+12,at,EIGHTH*.8,'square',.022);
+  const d=hasTTS()&&speechSynthesis.speaking?.35:1;
+  if(k===0||k===3||k===4||k===6)note(root,at,EIGHTH*1.6,'triangle',.11*d);
+  note(ch[[0,1,2,1,0,1,2,1][k]]+12,at,EIGHTH*.8,'square',.022*d);
   if(k%2===1)note(ch[2]+24,at,.05,'sine',.012);
 }
 function musSched(){
@@ -331,6 +355,7 @@ function musSched(){
 }
 function musicSync(want){
   try{
+    if(want&&!outHere())want=false;
     if(want&&sndOn()&&!MUS){const a=ac();if(!a||a.state!=='running')return;MUS={next:a.currentTime+.05,step:0,t:setInterval(musSched,60)};musSched()}
     else if((!want||!sndOn())&&MUS){clearInterval(MUS.t);MUS=null}
   }catch(e){}
@@ -364,7 +389,7 @@ function onGame(){
   const me=meNow();
   if(me)ref(S.code).collection('answers').doc(key+'_'+me.id).get().then(d=>{if(d.exists&&S.curKey===key){S.myAns=d.data().a;render()}}).catch(()=>{});
 }
-function leave(){unwatch();if(S.trial){S.trial=false;DB=REAL}S.players={};S.revealing=false;S.role='home';S.game=null;S.qs={};S.mine=null;S.me=null;S.hostMe=null;S.skip=false;S.formOpen=false;S.code='';S.err='';render()}
+function leave(){unwatch();S.view=false;if(hasTTS())speechSynthesis.cancel();if(S.trial){S.trial=false;DB=REAL}S.players={};S.revealing=false;S.role='home';S.game=null;S.qs={};S.mine=null;S.me=null;S.hostMe=null;S.skip=false;S.formOpen=false;S.code='';S.err='';render()}
 
 /* ---- player ---- */
 async function join(){
@@ -382,7 +407,7 @@ async function join(){
   }catch(e){dbErr()}
 }
 function beat(){
-  const me=S.role==='player'?S.me:null;if(!me||!S.code)return;
+  const me=S.role==='player'?S.me:(S.role==='host'&&!S.view&&!S.trial?S.hostMe:null);if(!me||!S.code)return;
   ref(S.code).collection('players').doc(me.id).set({name:me.name,seen:Date.now()},{merge:true}).catch(()=>{});
 }
 const pre=g=>((g.cur&&g.cur.cd)||0)+(g.rd||0);
@@ -464,19 +489,21 @@ async function newQuiz(){
     beginHost(c);
   }catch(e){dbErr()}
 }
-async function openHost(code){
+async function openHost(code,view){
   code=(code||'').trim().toUpperCase();if(!code)return;
   try{
     const g=await ref(code).get();
     if(!g.exists){fail('Deze code bestaat niet.');return}
-    beginHost(code);
+    beginHost(code,view);
   }catch(e){dbErr()}
 }
-function beginHost(code){
-  S.role='host';S.code=code;S.qs={};ls.set('pq-host',code);
-  const hm=ls.get('pq-hostme');S.hostMe=hm&&hm.code===code?{id:idOf(hm.name),name:hm.name}:null;
+function beginHost(code,view){
+  S.role='host';S.code=code;S.qs={};S.view=!!view;
+  if(S.view){S.hostMe=null;scrBeat()}
+  else{ls.set('pq-host',code);const hm=ls.get('pq-hostme');S.hostMe=hm&&hm.code===code?{id:idOf(hm.name),name:hm.name}:null}
   wake();watchGame();render();
 }
+function scrBeat(){if(S.view&&S.code)ref(S.code).update({scr:Date.now()}).catch(()=>{})}
 function startTrial(){
   unwatch();
   DB=memDB(trySeed);S.trial=true;S.role='host';S.code='TEST';S.qs={};S.players={};S.game=null;S.err='';
@@ -575,7 +602,7 @@ const ICO={
 };
 const canFs=()=>!!(document.fullscreenEnabled&&document.documentElement.requestFullscreen);
 const ib=(a,ico,label,cls)=>`<button class="ib${cls?' '+cls:''}" data-a="${a}" aria-label="${label}" title="${label}">${ico}</button>`;
-const topbar=()=>{const on=sndOn(),fs=!!document.fullscreenElement;return `<div class="bar"><span class="brand"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':'Code '+esc(S.code)}</span></span><span class="acts">${ib('snd',on?ICO.son:ICO.soff,on?'Geluid staat aan, tik om uit te zetten':'Geluid staat uit, tik om aan te zetten',on?'':'off')}${S.role==='host'&&canFs()?ib('fs',fs?ICO.fsx:ICO.fs,fs?'Beeldvullend uit':'Beeldvullend'):''}${ib('leave',ICO.out,'Stoppen')}</span></div>`};
+const topbar=()=>{const on=sndOn(),fs=!!document.fullscreenElement;return `<div class="bar"><span class="brand"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':(S.view?'Groot scherm · ':'Code ')+esc(S.code)}</span></span><span class="acts">${ib('snd',on?ICO.son:ICO.soff,on?'Geluid staat aan, tik om uit te zetten':'Geluid staat uit, tik om aan te zetten',on?'':'off')}${S.role==='host'&&canFs()?ib('fs',fs?ICO.fsx:ICO.fs,fs?'Beeldvullend uit':'Beeldvullend'):''}${ib('leave',ICO.out,'Stoppen')}</span></div>`};
 const qrSvg=link=>{
   try{
     const q=qrcode(0,'M');q.addData(link);q.make();
@@ -630,7 +657,7 @@ function home(){
   <section class="card"><h2>Quizmaster</h2>
     ${hc?`<p>Je hebt nog een quiz open met code <b>${esc(hc)}</b>.</p><div class="row"><button class="btn" data-a="openhost" data-c="${esc(hc)}">Verder als quizmaster</button></div><hr>`:''}
     <div class="row"><button class="btn${hc?' sec':''}" data-a="newquiz">Nieuwe quiz maken</button></div>
-    <details><summary>Quiz openen met een andere code</summary><div class="row"><input id="rc" type="text" maxlength="4" placeholder="Code" autocapitalize="characters" style="max-width:9em;margin:0"><button class="btn sec" data-a="openhost2">Openen</button></div></details>
+    <details><summary>Quiz openen met een andere code</summary><div class="row"><input id="rc" type="text" maxlength="4" placeholder="Code" autocapitalize="characters" style="max-width:9em;margin:0"><button class="btn sec" data-a="openhost2">Openen</button><button class="btn sec" data-a="openscreen">Als groot scherm</button></div><p class="mut">Kies Als groot scherm op een laptop of tv als de quizmaster zelf op de telefoon speelt.</p></details>
   </section>${DEMO?'':'<p class="on-green" style="text-align:center"><a href="?demo=1" style="color:var(--brass)">Bekijk een voorbeeld zonder database</a></p>'}`;
 }
 function form(){
@@ -697,6 +724,16 @@ function hostView(){
     <section class="card try"><h2>Zo werkt het met je vrienden</h2><ol><li>De quizmaster kiest Nieuwe quiz maken en deelt de code van vier letters.</li><li>Iedereen maakt in eigen tempo zeven vragen met vier antwoorden, desnoods weken van tevoren.</li><li>Op de quizavond start de quizmaster en antwoordt iedereen op de eigen telefoon.</li></ol></section>
     <div class="row"><button class="btn big" data-a="leave">Terug naar de start</button><button class="btn sec" data-a="start" style="color:var(--ivory)">Nog een keer</button></div>`;
   }
+  const armBtn=S.view&&!S.armed?`<div class="row" style="justify-content:center"><button class="btn big" data-a="arm">Geluid en voorlezen aanzetten</button></div>`:'';
+  if(S.view&&g.phase==='collect'){
+    const ids=Object.keys(S.qs),link=location.origin+location.pathname+'?c='+S.code;
+    const pls=Object.keys(S.players).filter(id=>!S.qs[id]);
+    const tk=takenBy0(),tl=topicsOf(g);
+    return h+armBtn+`<div class="cols"><section class="card" style="text-align:center"><div class="mut">Doe mee met code</div><div class="code">${esc(S.code)}</div>${qrSvg(link)}<p class="mut">of ga naar ${esc(link)}</p></section>
+    <section class="card"><h2>Spelers (${ids.length+pls.length})</h2><div class="pills">${ids.map(id=>`<span class="pill">${esc(S.qs[id].name)} <small>${S.qs[id].topic?esc(S.qs[id].topic):''}</small></span>`).join('')}${pls.map(id=>`<span class="pill">${esc(S.players[id].name)}</span>`).join('')}</div>
+    <h2 style="margin-top:18px">Onderwerpen</h2><div class="pills">${tl.map(t=>`<span class="pill"${tk[t]?'':' style="background:#e7e0c9;color:var(--ink)"'}>${esc(t)}</span>`).join('')}</div></section></div>
+    ${ttsCard()}<p class="on-green">Dit is het grote scherm. De quizmaster start en bedient de quiz vanaf de eigen telefoon.</p>`;
+  }
   if(g.phase==='collect'){
     const ids=Object.keys(S.qs),link=location.origin+location.pathname+'?c='+S.code,hm=S.hostMe;
     const pls=Object.keys(S.players).filter(id=>!S.qs[id]),np=ids.length+pls.length;
@@ -706,15 +743,19 @@ function hostView(){
     const tk=takenBy0(),tl=topicsOf(g);
     h+=`<section class="card"><h2>Onderwerpen</h2><div class="pills">${tl.map(t=>`<span class="pill"${tk[t]?'':' style="background:#e7e0c9;color:var(--ink)"'}>${esc(t)} <small>${tk[t]?esc(tk[t]):'nog vrij'}</small></span>`).join('')}</div>
     <details style="margin-top:10px"><summary>Onderwerpen aanpassen</summary><p class="mut">Eén onderwerp per regel.</p><textarea id="tpl" rows="${Math.max(4,tl.length+1)}">${esc(tl.join('\n'))}</textarea><div class="row"><button class="btn sec" data-a="savetopics">Opslaan</button></div></details></section>`;
+    const slink=location.origin+location.pathname+'?c='+S.code+'&scherm=1';
+    h+=`<section class="card"><h2>Groot scherm</h2><p>Speel je zelf mee op je telefoon? Open dan deze link op de laptop of tv. Dat scherm toont de quiz groot, met geluid, muziek en voorlezen, en jij bedient alles vanaf je telefoon.</p><p class="mut" style="word-break:break-all">${esc(slink)}</p><div class="row"><button class="btn sec" data-a="copyscr">Kopieer link voor groot scherm</button>${scrOn()?'<span class="pill">Groot scherm verbonden</span>':''}</div></section>`;
+    h+=ttsCard();
     h+=`<section class="card"><h2>Zelf meespelen</h2>${hm?`<p>Je speelt mee als <b>${esc(hm.name)}</b>. ${S.qs[hm.id]?'Je vragen staan erin.':'Je hebt nog geen vragen gemaakt.'}</p><div class="row"><button class="btn sec" data-a="editform">${S.qs[hm.id]?'Mijn vragen aanpassen':'Mijn vragen maken'}</button></div>`:`<p class="mut">Wil je zelf ook vragen maken en antwoorden op dit scherm?</p><label class="lab">Je naam<input id="hn" type="text" maxlength="20"></label><div class="row"><button class="btn sec" data-a="hostme">Ik speel mee</button></div>`}</section>`;
     return h+`<section class="card"><h2>Spelregels</h2><div class="row" style="margin:0"><label class="lab" style="margin:0">Tijd per vraag<select id="lim"><option value="10">10 seconden</option><option value="20" selected>20 seconden</option><option value="30">30 seconden</option><option value="60">60 seconden</option></select></label><label class="lab" style="margin:0">Leestijd<select id="rd"><option value="0">Geen</option><option value="3" selected>3 seconden</option><option value="5">5 seconden</option><option value="8">8 seconden</option></select></label></div><p class="mut">Net als bij Kahoot: een goed antwoord levert tot 1000 punten op. Direct antwoorden geeft 1000, in de laatste seconde 500. Meerdere goede antwoorden achter elkaar geven een reeksbonus, van +100 oplopend tot +500. Fout of te laat geeft 0 punten. De quiz gaat per onderwerp: eerst wordt het onderwerp aangekondigd, en elke vraag begint met aftellen, 3, 2, 1. Tijdens de leestijd staat alleen de vraag op het scherm. Wie de vraag heeft gemaakt, doet bij die vraag niet mee. Het antwoord wordt getoond zodra iedereen heeft geantwoord of de tijd om is.</p></section><div class="row" style="justify-content:flex-end"><button class="btn big" data-a="start"${ids.length?'':' disabled'}>Start de quiz</button></div><p class="on-green">Wie geen vragen maakt, kan toch meedoen met de code zodra de quiz loopt.</p>`;
   }
   if(g.phase==='done'){
-    return h+`<section class="card stand" style="position:relative;overflow:hidden">${confetti()}<h2>Eindstand</h2><div class="endcols"><div>${podium(g.scores)}</div><div>${board(g.scores,hm0())}</div></div></section><div class="row"><button class="btn" data-a="start">Nog een keer spelen</button><button class="btn sec" data-a="csv">Uitslag downloaden</button><button class="btn sec" data-a="leave">Quiz afsluiten</button></div>`;
+    return h+`<section class="card stand" style="position:relative;overflow:hidden">${confetti()}<h2>Eindstand</h2><div class="endcols"><div>${podium(g.scores)}</div><div>${board(g.scores,hm0())}</div></div></section>${S.view?'':'<div class="row"><button class="btn" data-a="start">Nog een keer spelen</button><button class="btn sec" data-a="csv">Uitslag downloaden</button><button class="btn sec" data-a="leave">Quiz afsluiten</button></div>'}`;
   }
   const c=g.cur;if(!c)return h;
+  h+=armBtn;
   if(g.rev&&g.sb){
-    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div><h2>Tussenstand</h2>${board(g.scores,hm0(),0,g.gains)}</section><div class="row" style="justify-content:flex-end"><button class="btn big" data-a="next">Volgende vraag</button></div>`;
+    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div><h2>Tussenstand</h2>${board(g.scores,hm0(),0,g.gains)}</section>${S.view?'':'<div class="row" style="justify-content:flex-end"><button class="btn big" data-a="next">Volgende vraag</button></div>'}`;
   }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,S.hostMe&&c.aid===S.hostMe.id?'<p>Dit is jouw onderwerp. Bij deze vragen speel je niet mee.</p>':'');
   const hm=S.hostMe,rev=g.rev,answers=Object.values(S.ans),cnt=[0,0,0,0];
@@ -738,7 +779,7 @@ function hostView(){
     const nm=id=>(S.players[id]&&S.players[id].name)||(hm&&hm.id===id?hm.name:'')||(S.ans[id]&&S.ans[id].name)||id;
     who=`<span class="lbl">Geantwoord ${answers.length} van ${expected()}</span>${ids.map(id=>`<span class="chipn${done.has(id)?' on':''}">${esc(nm(id))}</span>`).join('')}`;
   }
-  const btns=rev?(lastQ?'<button class="btn big" data-a="next">Naar de eindstand</button>':'<button class="btn big" data-a="board">Tussenstand</button>'):'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq" style="color:var(--ivory)">Vraag overslaan</button>');
+  const btns=S.view?'':rev?(lastQ?'<button class="btn big" data-a="next">Naar de eindstand</button>':'<button class="btn big" data-a="board">Tussenstand</button>'):'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq" style="color:var(--ivory)">Vraag overslaan</button>');
   h+=`<div class="strip"><div class="who">${who}</div><div class="row">${btns}</div></div>`;
   return h;
 }
@@ -755,6 +796,11 @@ const expected=()=>{
   return n+(me&&me!==aid?1:0);
 };
 const hm0=()=>S.hostMe?S.hostMe.id:'';
+const ttsCard=()=>{
+  if(!hasTTS())return `<section class="card"><h2>Voorlezen</h2><p class="mut">Deze browser kan niet voorlezen. Gebruik bijvoorbeeld Chrome, Edge of Safari.</p></section>`;
+  const where=!S.view&&scrOn()?'<p class="mut">Er is een groot scherm verbonden. Het voorlezen, de muziek en de geluiden komen daar vandaan; deze telefoon blijft stil.</p>':'';
+  return `<section class="card"><h2>Voorlezen</h2><p>Het onderwerp van elke ronde en elke vraag worden voorgelezen. Stem: <b>${VOICE?esc(VOICE.name):'geen Nederlandse stem gevonden'}</b>${VOICE?'':', de standaardstem van dit apparaat wordt gebruikt'}.</p>${VOICE?'':'<p class="mut">Een Nederlandse stem zit standaard in Chrome, Edge en Safari. Op Windows kun je er een toevoegen via Instellingen, Tijd en taal, Spraak.</p>'}${where}<div class="row"><button class="btn sec" data-a="tts">${ttsOn()?'Voorlezen staat aan':'Voorlezen staat uit'}</button><button class="btn sec" data-a="ttstest">Test de stem</button></div></section>`;
+};
 const takenBy0=()=>{const t={};Object.keys(S.qs).forEach(id=>{const x=S.qs[id];if(x.topic)t[x.topic]=(t[x.topic]?t[x.topic]+' en ':'')+x.name});return t};
 function view(){
   if(!DB)return `<div class="alert">De database is niet bereikbaar. Meedoen en een quiz maken lukt nu niet, de testquiz wel. Controleer je internetverbinding en ververs de pagina.</div>`+home();
@@ -789,7 +835,12 @@ document.addEventListener('click',e=>{
   else if(a==='next')nextQ();
   else if(a==='board')showBoard();
   else if(a==='copy')copyLink();
-  else if(a==='snd'){ls.set(sndKey(),!sndOn());sfx('lock');render()}
+  else if(a==='copyscr'){const l=location.origin+location.pathname+'?c='+S.code+'&scherm=1';(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>fail('Link voor het grote scherm gekopieerd.')).catch(()=>fail('Kopiëren lukte niet. Neem de link hierboven over.'))}
+  else if(a==='openscreen'){arm();openHost($('rc').value,true)}
+  else if(a==='arm'){arm();render()}
+  else if(a==='tts'){ls.set('pq-tts',!ttsOn());if(!ttsOn()&&hasTTS())speechSynthesis.cancel();render()}
+  else if(a==='ttstest'){arm();say('Welkom bij de pubquiz. Ronde één: FC Groningen.',true)}
+  else if(a==='snd'){ls.set(sndKey(),!sndOn());if(!sndOn()&&hasTTS())speechSynthesis.cancel();sfx('lock');render()}
   else if(a==='fs'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(x){}}
   else if(a==='csv')csv();
   else if(a==='delq')delQs(b.dataset.id);
@@ -813,17 +864,18 @@ let tickN=0;
 setInterval(()=>{
   tickN++;
   const g=S.game;
+  if(S.view&&tickN%60===0)scrBeat();
   {let want=false;if(g&&g.phase==='play'&&g.cur&&!g.rev&&S.role==='host'){const e=elapsed(g);want=e>=0&&e<(g.limit||20)*1000}musicSync(want)}
   if(!g||g.phase!=='play'||!g.cur)return;
-  if(S.role==='player'&&tickN%60===0)beat();
+  if((S.role==='player'||(S.role==='host'&&S.hostMe))&&tickN%60===0)beat();
   if(g.rev)return;
   const lim=(g.limit||20)*1000,el=elapsed(g);
   const tm=$('tm'),tb=$('tb');
   const st=stage(g),sk=st+(st==='cd'?cdNum(g):'');
   if(sk!==S.stKey){
     const prev=S.stKey||'';S.stKey=sk;
-    if(st==='cd'){const n=cdNum(g);if(prev===''&&g.cur.first)sfx('join');if(n<=3)sfx('tick')}
-    else if(prev.startsWith('cd'))sfx('start');
+    if(st==='cd'){const n=cdNum(g);if(prev===''&&g.cur.first){sfx('join');say(g.cur.topic?`Ronde ${g.cur.rnd}. ${g.cur.topic}.`:`Ronde ${g.cur.rnd}.`)}if(n<=3)sfx('tick')}
+    else if(prev.startsWith('cd')){sfx('start');say(g.cur.q)}
     render();
   }
   const left=Math.ceil((lim-el)/1000);
@@ -836,9 +888,11 @@ setInterval(()=>{
     if(el>=lim+1500||(ex>0&&Object.keys(S.ans).length>=ex&&el>800))revealQ();
   }
 },250);
+document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
+{const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
 </body>
