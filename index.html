@@ -194,6 +194,21 @@ textarea,input[type=text],select{max-width:100%}
   body.host .qgrid .opt{min-height:clamp(48px,8vh,96px)}
   body.host .qgrid .opts{gap:clamp(6px,1vh,12px)}
 }
+/* fotovraag: foto groot naast de vraag op een groot scherm */
+.qg2{display:flex;flex-direction:column}
+.qside{display:contents}
+.qg2 .from{order:1}.qg2 .tline{order:2}.qg2 .q{order:3}.qg2 .qimg{order:4}.qg2 .opts{order:5}.qg2 .qside>p{order:6}
+@media(min-width:900px){
+  body.host .qg2{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:clamp(16px,2vw,32px);align-items:center}
+  body.host .qside{display:flex;flex-direction:column;justify-content:center;min-width:0}
+  body.host .qg2 .qimg,body.host .qg2 .qside{order:0}
+  body.host .qg2 .qimg img.pic{width:100%;height:auto;max-height:calc(100vh - 230px);object-fit:contain;margin:0 auto}
+  body.host .qg2 .q{font-size:clamp(1.2rem,.6rem + 2vh,2.3rem);margin:.3em 0 .4em}
+  body.host .qg2 .opts{grid-template-columns:1fr;margin-top:6px;gap:clamp(6px,1vh,12px)}
+  body.host .qg2 .opt{min-height:clamp(46px,7.5vh,96px);font-size:clamp(1.05rem,.5rem + 1.6vh,1.9rem);padding:.5em .9em}
+  body.host .card.hasimg{padding-top:14px;padding-bottom:14px}
+  body.host main:has(.qg2){max-width:min(1900px,97vw)}
+}
 </style>
 </head>
 <body>
@@ -829,7 +844,8 @@ function hostView(){
   if(reading)opts='<p class="mut">De antwoorden verschijnen zo…</p>';
   else if(hm&&!rev&&c.aid!==hm.id&&S.myAns==null)opts=optsBtn(c.o,!!c.img);
   else opts=optsStatic(c.o,rev?g.c:-1,rev?cnt:null,!!c.img)+(hm&&!rev&&c.aid!==hm.id?'<p class="mut">Jouw antwoord is vastgelegd.</p>':'');
-  h+=`<section class="card${c.img?' hasimg':''}"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>${c.img?`<div class="qgrid"><div>${pic(c.img)}</div><div>${opts}</div></div>`:opts}${hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':''}</section>`;
+  {const head=`<div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${S.trial?'':' · van '+esc(c.au)}</div>${rev?'':timerHtml(g)}<div class="q">${esc(c.q)}</div>`,own=hm&&c.aid===hm.id&&!rev?'<p class="mut">Deze vraag heb jij gemaakt, dus je speelt niet mee.</p>':'';
+  h+=c.img?`<section class="card hasimg"><div class="qg2"><div class="qimg">${pic(c.img)}</div><div class="qside">${head}${opts}${own}</div></div></section>`:`<section class="card">${head}${opts}${own}</section>`;}
   if(S.trial&&!rev&&c.n===1)h+=`<p class="on-green">Tik op het goede antwoord. Hoe sneller je goed antwoordt, hoe meer punten: tot 1000 per vraag.</p>`;
   const lastQ=c.n>=c.tot;
   let who='';
@@ -970,7 +986,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 17 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 18 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
