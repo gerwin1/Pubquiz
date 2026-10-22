@@ -305,6 +305,7 @@ const wake=()=>{try{if(navigator.wakeLock&&document.visibilityState==='visible')
 /* ---- sound ---- */
 let AC=null;
 const sndKey=()=>'pq-snd-'+(S.role==='host'?'h':'p');
+const musOn=()=>{const v=ls.get('pq-mus');return v==null?true:v};
 const sndOn=()=>{const v=ls.get(sndKey());return v==null?S.role==='host':v};
 let SFXBUS=null,MUSBUS=null,NOISE=null;
 const SFX_LVL=2.4,MUS_LVL=2.9,MUS_DUCK=.75;
@@ -413,7 +414,7 @@ function musSched(){
 }
 function musicSync(mode){
   try{
-    if(mode&&(!outHere()||!sndOn()))mode=null;
+    if(mode&&(!outHere()||!sndOn()||!musOn()))mode=null;
     if(mode&&!MUS){const a=ac();if(!a||a.state!=='running')return;MUS={next:a.currentTime+.05,step:0,mode,t:setInterval(musSched,60)};musSched()}
     else if(!mode&&MUS){clearInterval(MUS.t);MUS=null}
     else if(MUS)MUS.mode=mode;
@@ -657,11 +658,13 @@ const ICO={
   soff:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></svg>',
   fs:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
   fsx:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+  mus:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+  musx:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M3 3l18 18"/></svg>',
   out:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg>'
 };
 const canFs=()=>!!(document.fullscreenEnabled&&document.documentElement.requestFullscreen);
 const ib=(a,ico,label,cls)=>`<button class="ib${cls?' '+cls:''}" data-a="${a}" aria-label="${label}" title="${label}">${ico}</button>`;
-const topbar=()=>{const on=sndOn(),fs=!!document.fullscreenElement;return `<div class="bar"><span class="brand"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':(S.view?'Groot scherm · ':'Code ')+esc(S.code)}</span></span><span class="acts">${ib('snd',on?ICO.son:ICO.soff,on?'Geluid staat aan, tik om uit te zetten':'Geluid staat uit, tik om aan te zetten',on?'':'off')}${S.role==='host'&&canFs()?ib('fs',fs?ICO.fsx:ICO.fs,fs?'Beeldvullend uit':'Beeldvullend'):''}${ib('leave',ICO.out,'Stoppen')}</span></div>`};
+const topbar=()=>{const on=sndOn(),fs=!!document.fullscreenElement;return `<div class="bar"><span class="brand"><span class="logo">Pubquiz</span><span class="chip">${S.trial?'Testquiz':(S.view?'Groot scherm · ':'Code ')+esc(S.code)}</span></span><span class="acts">${ib('snd',on?ICO.son:ICO.soff,on?'Geluid staat aan, tik om uit te zetten':'Geluid staat uit, tik om aan te zetten',on?'':'off')}${S.role==='host'?ib('mus',musOn()?ICO.mus:ICO.musx,musOn()?'Muziek staat aan, tik om uit te zetten':'Muziek staat uit, tik om aan te zetten',musOn()?'':'off'):''}${S.role==='host'&&canFs()?ib('fs',fs?ICO.fsx:ICO.fs,fs?'Beeldvullend uit':'Beeldvullend'):''}${ib('leave',ICO.out,'Stoppen')}</span></div>`};
 const qrSvg=link=>{
   try{
     const q=qrcode(0,'M');q.addData(link);q.make();
@@ -907,6 +910,7 @@ document.addEventListener('click',e=>{
   else if(a==='arm'){arm();render()}
   else if(a==='tts'){ls.set('pq-tts',!ttsOn());if(!ttsOn()&&hasTTS())speechSynthesis.cancel();render()}
   else if(a==='ttstest'){arm();say('Welkom bij de pubquiz. Ronde één: FC Groningen.',true)}
+  else if(a==='mus'){ls.set('pq-mus',!musOn());render()}
   else if(a==='snd'){ls.set(sndKey(),!sndOn());if(!sndOn()&&hasTTS())speechSynthesis.cancel();sfx('lock');render()}
   else if(a==='fs'){try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(x){}}
   else if(a==='csv')csv();
@@ -966,7 +970,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 15 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 16 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
