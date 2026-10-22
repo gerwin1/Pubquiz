@@ -308,7 +308,7 @@ const sndKey=()=>'pq-snd-'+(S.role==='host'?'h':'p');
 const musOn=()=>{const v=ls.get('pq-mus');return v==null?true:v};
 const sndOn=()=>{const v=ls.get(sndKey());return v==null?S.role==='host':v};
 let SFXBUS=null,MUSBUS=null,NOISE=null;
-const SFX_LVL=2.4,MUS_LVL=2.9,MUS_DUCK=.75;
+const SFX_LVL=2.4,MUS_LVL=1.7,MUS_DUCK=.5;
 function ac(){
   if(!AC){try{
     AC=new (window.AudioContext||window.webkitAudioContext)();
@@ -970,7 +970,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 16 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 17 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
