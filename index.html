@@ -282,8 +282,11 @@ const TRY_IMG=[
 ].map(x=>'data:image/svg+xml,'+encodeURIComponent(x));
 const BOTS=[['sjors','Sjors',.65],['femke','Femke',.5]];
 function trySeed(store){
-  store['games/TEST']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},limit:20,rd:3,topics:['FC Groningen'],created:Date.now()};
+  store['games/TEST']={phase:'collect',run:0,idx:0,rev:false,c:-1,scores:{},gains:{},limit:20,rd:3,topics:['FC Groningen','Stad Groningen'],created:Date.now()};
   store['games/TEST/questions/testquiz']={name:'Testquiz',topic:'FC Groningen',ts:Date.now(),qs:TRY_QS.map(([q,o,c],i)=>({q,o,c,img:TRY_IMG[i]||''}))};
+  store['games/TEST/questions/testquiz2']={name:'Testquiz',topic:'Stad Groningen',ts:Date.now(),qs:[
+    {q:'Hoe heet de bekende toren in het centrum van Groningen?',o:['Martinitoren','Domtoren','Westertoren','Oldehove'],c:0,img:''},
+    {q:'Hoe heet het grote plein bij het stadhuis van Groningen?',o:['Dam','Vrijthof','Grote Markt','Neude'],c:2,img:''}]};
   [['jij','Jij'],...BOTS].forEach(([id,name])=>{store['games/TEST/players/'+id]={name,seen:Date.now()}});
 }
 let DB=null;
@@ -448,6 +451,7 @@ function onGame(){
   const g=S.game;if(!g)return;
   const key=g.phase==='play'?g.run+'_'+g.idx:'';
   const wasRev=S.lastRev,wasPhase=S.lastPhase;S.lastRev=g.rev;S.lastPhase=g.phase;
+  {const sbk=g.phase==='play'&&g.sb&&g.cur&&g.cur.last?key:'';if(sbk&&S.sbk!==undefined&&sbk!==S.sbk){sfx('win');say(`Einde van ronde ${g.cur.rnd}${g.cur.topic?', '+g.cur.topic:''}. Dit is de tussenstand.`)}S.sbk=sbk}
   if(key===S.curKey){
     if(g.phase==='play'&&g.rev&&wasRev===false){
       if(S.role==='host')sfx(S.hostMe&&g.cur&&g.cur.aid!==S.hostMe.id?(S.myAns===g.c?'good':'bad'):'reveal');
@@ -605,8 +609,8 @@ function setHostMe(name){
 const curFor=(order,i)=>{
   const au=x=>x.split('|')[0],[id,j]=order[i].split('|'),q=S.qs[id].qs[+j];
   let rnd=0;for(let k=0;k<=i;k++)if(k===0||au(order[k])!==au(order[k-1]))rnd++;
-  const first=i===0||au(order[i-1])!==id;
-  return{n:i+1,tot:order.length,q:q.q,img:q.img||'',o:q.o,au:S.qs[id].name,aid:id,topic:S.qs[id].topic||'',rnd,rtot:new Set(order.map(au)).size,first,cd:first?5:3};
+  const first=i===0||au(order[i-1])!==id,last=i===order.length-1||au(order[i+1])!==id;
+  return{n:i+1,tot:order.length,q:q.q,img:q.img||'',o:q.o,au:S.qs[id].name,aid:id,topic:S.qs[id].topic||'',rnd,rtot:new Set(order.map(au)).size,first,last,cd:first?5:3};
 };
 async function startQuiz(){
   const ids=Object.keys(S.qs);if(!ids.length)return;
@@ -615,7 +619,7 @@ async function startQuiz(){
   const scores={};
   if(!S.trial)ids.forEach(id=>{scores[id]={n:S.qs[id].name,s:0}});
   Object.keys(S.players).forEach(id=>{if(!scores[id])scores[id]={n:S.players[id].name,s:0}});
-  try{await ref(S.code).update({phase:'play',run:(S.game.run||0)+1,idx:0,rev:false,c:-1,order,scores,gains:{},bon:{},streaks:{},sb:false,limit:lim,rd,t0:TS(),cur:curFor(order,0)})}catch(e){dbErr()}
+  try{await ref(S.code).update({phase:'play',run:(S.game.run||0)+1,idx:0,rev:false,c:-1,order,scores,gains:{},bon:{},streaks:{},sb:false,rs:{},limit:lim,rd,t0:TS(),cur:curFor(order,0)})}catch(e){dbErr()}
 }
 function calcRound(g,got,q,t0){
   const lim=(g.limit||20)*1000,scores=cl(g.scores||{}),streaks=cl(g.streaks||{}),gains={},bon={};
@@ -658,7 +662,11 @@ async function nextQ(){
   if(i<g.order.length&&!S.qs[g.order[i].split('|')[0]]){fail('De vragen worden nog geladen. Probeer het zo opnieuw.');return}
   try{
     if(i>=g.order.length)await ref(S.code).update({phase:'done',rev:false,sb:false,c:-1});
-    else await ref(S.code).update({idx:i,rev:false,sb:false,c:-1,gains:{},bon:{},t0:TS(),cur:curFor(g.order,i)});
+    else{
+      const nc=curFor(g.order,i),upd={idx:i,rev:false,sb:false,c:-1,gains:{},bon:{},t0:TS(),cur:nc};
+      if(nc.first){const rs={};Object.keys(g.scores||{}).forEach(k=>{rs[k]=g.scores[k].s||0});upd.rs=rs}
+      await ref(S.code).update(upd);
+    }
   }catch(e){dbErr()}
 }
 async function copyLink(){
@@ -723,7 +731,7 @@ function home(){
   const qc=(new URLSearchParams(location.search).get('c')||'').toUpperCase(),sv=ls.get('pq-me')||{},hc=ls.get('pq-host');
   return `${sign()}
   <section class="card try"><h2>Nieuw hier? Speel eerst een testquiz</h2>
-    <p class="mut">Vijf vragen over FC Groningen, tegen twee nepspelers. Duurt een paar minuten en werkt alleen op dit apparaat. Er wordt niets opgeslagen.</p>
+    <p class="mut">Zeven vragen in twee rondes, over FC Groningen en de stad Groningen, tegen twee nepspelers. Duurt een paar minuten en werkt alleen op dit apparaat. Er wordt niets opgeslagen.</p>
     <div class="row"><button class="btn big" data-a="trial">Naar de testquiz</button></div>
   </section>
   <section class="card"><h2>Meedoen</h2>
@@ -768,7 +776,7 @@ function playerView(){
   const c=g.cur;if(!c)return h;
   if(g.rev&&g.sb){
     const arr=sorted(g.scores),rk=arr.findIndex(x=>x.id===me.id)+1;
-    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div>${rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:''}<h2>Tussenstand</h2>${board(g.scores,me.id,0,g.gains)}</section>`;
+    return h+standCard(g,me.id,rk?`<div class="result">Plek ${rk}</div><p class="mut">${arr[rk-1].s} punten</p>`:'');
   }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,c.aid===me.id?'<p>Dit is jouw onderwerp. Bij deze vragen doe je niet mee.</p>':'');
   h+=`<section class="card"><div class="from">Vraag ${c.n} van ${c.tot}${tchip(c)}${((g.streaks||{})[me.id]||0)>=1?' · reeks van '+(g.streaks||{})[me.id]:''}</div><div class="q">${esc(c.q)}</div>${pic(c.img)}</section>`;
@@ -789,9 +797,9 @@ function hostView(){
   let h=topbar();
   if(S.formOpen)return h+form();
   if(S.trial&&g.phase==='collect'){
-    const ready=!!S.qs.testquiz&&Object.keys(S.players).length>0;
-    return h+`<section class="card try"><h2>Testquiz over FC Groningen</h2>
-    <p>Je speelt vijf vragen tegen Sjors en Femke, twee nepspelers die vanzelf meedoen.</p>
+    const ready=!!S.qs.testquiz&&!!S.qs.testquiz2&&Object.keys(S.players).length>0;
+    return h+`<section class="card try"><h2>Testquiz over Groningen</h2>
+    <p>Je speelt twee rondes, FC Groningen en Stad Groningen, tegen Sjors en Femke, twee nepspelers die vanzelf meedoen. Na elke ronde zie je de stand.</p>
     <ol><li>Elke vraag begint met aftellen: 3, 2, 1. Bij de eerste zie je ook het onderwerp.</li><li>Daarna zie je 3 seconden alleen de vraag.</li><li>Daarna verschijnen vier antwoorden en heb je 20 seconden. Tik op het goede.</li><li>Snel en goed levert tot 1000 punten op. Meerdere goed achter elkaar geeft een reeksbonus.</li><li>Na elke vraag zie je wie wat koos en hoe de stand is.</li></ol>
     <p class="mut">Het geluid staat aan, met een deuntje tijdens het aftellen. Met het luidsprekertje rechtsboven zet je het uit. Er wordt niets opgeslagen.</p></section>
     <div class="row"><button class="btn big" data-a="start"${ready?'':' disabled'}>Start de testquiz</button><button class="btn sec" data-a="leave" style="color:var(--ivory)">Terug</button></div>`;
@@ -834,7 +842,7 @@ function hostView(){
   const c=g.cur;if(!c)return h;
   h+=armBtn;
   if(g.rev&&g.sb){
-    return h+`<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div><h2>Tussenstand</h2>${board(g.scores,hm0(),0,g.gains)}</section>${S.view?'':'<div class="row" style="justify-content:flex-end"><button class="btn big" data-a="next">Volgende vraag</button></div>'}`;
+    return h+standCard(g,hm0())+(S.view?'':`<div class="row" style="justify-content:flex-end"><button class="btn big" data-a="next">${c.last?'Volgende ronde':'Volgende vraag'}</button></div>`);
   }
   if(!g.rev&&stage(g)==='cd')return h+cdCard(g,S.hostMe&&c.aid===S.hostMe.id?'<p>Dit is jouw onderwerp. Bij deze vragen speel je niet mee.</p>':'');
   const hm=S.hostMe,rev=g.rev,answers=Object.values(S.ans),cnt=[0,0,0,0];
@@ -859,7 +867,7 @@ function hostView(){
     const nm=id=>(S.players[id]&&S.players[id].name)||(hm&&hm.id===id?hm.name:'')||(S.ans[id]&&S.ans[id].name)||id;
     who=`<span class="lbl">Geantwoord ${answers.length} van ${expected()}</span>${ids.map(id=>`<span class="chipn${done.has(id)?' on':''}">${esc(nm(id))}</span>`).join('')}`;
   }
-  const btns=S.view?'':rev?(lastQ?'<button class="btn big" data-a="next">Naar de eindstand</button>':'<button class="btn big" data-a="board">Tussenstand</button>'):'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq" style="color:var(--ivory)">Vraag overslaan</button>');
+  const btns=S.view?'':rev?(lastQ?'<button class="btn big" data-a="next">Naar de eindstand</button>':(c.last?'<button class="btn big" data-a="board">Stand na deze ronde</button>':'<button class="btn sec" data-a="board" style="color:var(--ivory)">Tussenstand</button><button class="btn big" data-a="next">Volgende vraag</button>')):'<button class="btn big" data-a="reveal">Toon antwoord</button>'+(S.trial?'':'<button class="btn sec" data-a="skipq" style="color:var(--ivory)">Vraag overslaan</button>');
   h+=`<div class="strip"><div class="who">${who}</div><div class="row">${btns}</div></div>`;
   return h;
 }
@@ -876,6 +884,13 @@ const expected=()=>{
   return n+(me&&me!==aid?1:0);
 };
 const hm0=()=>S.hostMe?S.hostMe.id:'';
+const roundGains=g=>{const r={},rs=g.rs||{};Object.keys(g.scores||{}).forEach(k=>{const d=(g.scores[k].s||0)-(rs[k]||0);if(d>0)r[k]=d});return r};
+const standCard=(g,meId,extra)=>{
+  const c=g.cur;
+  if(!c.last)return `<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div>${extra||''}<h2>Tussenstand</h2>${board(g.scores,meId,0,g.gains)}</section>`;
+  const rg=roundGains(g),best=Object.keys(rg).sort((a,b)=>rg[b]-rg[a])[0];
+  return `<section class="card stand round"><div class="from">Einde van ronde ${c.rnd} van ${c.rtot}${tchip(c)}</div>${extra||''}<h2>Stand na ronde ${c.rnd}</h2>${best?`<p class="mut">Beste van deze ronde: <b>${esc(g.scores[best].n)}</b> met ${rg[best]} punten. Achter iedere naam staat wat diegene in deze ronde heeft gescoord.</p>`:''}${board(g.scores,meId,0,rg)}</section>`;
+};
 const isOn=id=>{const p=S.players[id];return !!(p&&p.seen&&Date.now()-p.seen<45000)};
 const onSig=()=>Object.keys(S.players).filter(isOn).sort().join(',');
 const pplIds=()=>{const ids=Object.keys(S.qs);Object.keys(S.players).forEach(id=>{if(!ids.includes(id))ids.push(id)});return ids};
@@ -986,7 +1001,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 18 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 20 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
