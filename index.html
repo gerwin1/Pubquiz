@@ -209,6 +209,10 @@ textarea,input[type=text],select{max-width:100%}
   body.host .card.hasimg{padding-top:14px;padding-bottom:14px}
   body.host main:has(.qg2){max-width:min(1900px,97vw)}
 }
+.rcols{display:grid;gap:18px}
+.rh{font-family:"Alfa Slab One",Georgia,serif;font-weight:400;font-size:1.15rem;color:var(--g8);margin:.2em 0 .5em}
+@media(min-width:760px){.rcols{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}}
+@media(min-width:900px){body.host .rh{font-size:clamp(1.1rem,.6rem + 1.4vh,1.8rem)}}
 </style>
 </head>
 <body>
@@ -889,7 +893,8 @@ const standCard=(g,meId,extra)=>{
   const c=g.cur;
   if(!c.last)return `<section class="card stand"><div class="from">Na vraag ${c.n} van ${c.tot}${tchip(c)}</div>${extra||''}<h2>Tussenstand</h2>${board(g.scores,meId,0,g.gains)}</section>`;
   const rg=roundGains(g),best=Object.keys(rg).sort((a,b)=>rg[b]-rg[a])[0];
-  return `<section class="card stand round"><div class="from">Einde van ronde ${c.rnd} van ${c.rtot}${tchip(c)}</div>${extra||''}<h2>Stand na ronde ${c.rnd}</h2>${best?`<p class="mut">Beste van deze ronde: <b>${esc(g.scores[best].n)}</b> met ${rg[best]} punten. Achter iedere naam staat wat diegene in deze ronde heeft gescoord.</p>`:''}${board(g.scores,meId,0,rg)}</section>`;
+  const rsc={};Object.keys(g.scores||{}).forEach(k=>{rsc[k]={n:g.scores[k].n,s:rg[k]||0}});
+  return `<section class="card stand round"><div class="from">Einde van ronde ${c.rnd} van ${c.rtot}${tchip(c)}</div>${extra||''}<h2>Stand na ronde ${c.rnd}</h2>${best?`<p class="mut">Beste van deze ronde: <b>${esc(g.scores[best].n)}</b> met ${rg[best]} punten.</p>`:''}<div class="rcols"><div><h3 class="rh">Deze ronde${c.topic?': '+esc(c.topic):''}</h3>${board(rsc,meId)}</div><div><h3 class="rh">Totaalstand</h3>${board(g.scores,meId)}</div></div></section>`;
 };
 const isOn=id=>{const p=S.players[id];return !!(p&&p.seen&&Date.now()-p.seen<45000)};
 const onSig=()=>Object.keys(S.players).filter(isOn).sort().join(',');
@@ -1001,7 +1006,7 @@ document.addEventListener('pointerdown',()=>{if(!S.armed)arm()},true);
 document.addEventListener('fullscreenchange',()=>render());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake()});
 render();
-{const el=$('ver');if(el){let t='Versie 20 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
+{const el=$('ver');if(el){let t='Versie 21 · 22 oktober 2026';try{const d=new Date(document.lastModified);if(!isNaN(d)&&Math.abs(Date.now()-d)>60000)t+=' · online sinds '+d.toLocaleString('nl-NL',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){}el.textContent=t}}
 {const u=new URLSearchParams(location.search),c=u.get('c');if(c&&u.has('scherm'))openHost(c,true)}
 })();
 </script>
